@@ -186,27 +186,16 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 }
 
 // resolveMessages returns the best-available message list for the session.
-// When a tape reader is configured, it prefers tape-sourced messages (which
-// preserve Thinking and Metadata) and uses compression anchors as natural
-// boundaries. Falls back to session.Messages when tape is unavailable.
+// Prefers tape-sourced messages (full Thinking/Metadata fidelity) with
+// compression anchors as boundaries. Single file read, no redundant IO.
 func (m *manager) resolveMessages(ctx context.Context, session *storage.Session) []ports.Message {
 	if m.tapeReader == nil || session == nil || session.ID == "" {
 		return append([]ports.Message(nil), session.Messages...)
 	}
-
-	// Try messages after last compression anchor first.
-	msgs, err := m.tapeReader.ReadMessagesAfterLabel(ctx, session.ID, "compression")
+	msgs, err := m.tapeReader.ReadMessages(ctx, session.ID, agent.LabelCompression)
 	if err == nil && len(msgs) > 0 {
 		return msgs
 	}
-
-	// No compression anchor — read all messages from tape.
-	msgs, err = m.tapeReader.ReadAllMessages(ctx, session.ID)
-	if err == nil && len(msgs) > 0 {
-		return msgs
-	}
-
-	// Tape empty or errored — fall back to session.Messages.
 	return append([]ports.Message(nil), session.Messages...)
 }
 

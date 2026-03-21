@@ -8,11 +8,20 @@ import (
 	"alex/internal/domain/agent/ports/storage"
 )
 
+// Compression label constants used as tape anchor markers.
+const (
+	LabelCompression             = "compression"
+	LabelDeferredSummaryApplied  = "deferred_summary_applied"
+	LabelDeferredSummaryEarly    = "deferred_summary_applied_early"
+)
+
 // TapeMessageReader reconstructs messages from the tape audit trail.
 // Implementations live in infra/tape; the domain layer uses this port.
 type TapeMessageReader interface {
 	ReadMessagesAfterLabel(ctx context.Context, sessionID, label string) ([]core.Message, error)
 	ReadAllMessages(ctx context.Context, sessionID string) ([]core.Message, error)
+	// ReadMessages tries after-label first, falls back to all — single file read.
+	ReadMessages(ctx context.Context, sessionID, compressionLabel string) ([]core.Message, error)
 }
 
 type ContextManager interface {

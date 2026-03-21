@@ -90,13 +90,11 @@ func (a *SessionAdapter) Get(ctx context.Context, id string) (*storage.Session, 
 
 // Save appends message entries to the tape for any new messages.
 func (a *SessionAdapter) Save(ctx context.Context, session *storage.Session) error {
-	// Query existing entries to know how many messages are already persisted.
 	existing, err := a.store.Query(ctx, session.ID, coretape.Query().Kinds(coretape.KindMessage))
 	if err != nil {
 		return fmt.Errorf("save session query: %w", err)
 	}
 
-	// If the tape doesn't exist yet, create an anchor first.
 	allEntries, err := a.store.Query(ctx, session.ID, coretape.Query())
 	if err != nil {
 		return fmt.Errorf("save session check: %w", err)
@@ -110,7 +108,6 @@ func (a *SessionAdapter) Save(ctx context.Context, session *storage.Session) err
 		}
 	}
 
-	// Append only new messages.
 	for i := len(existing); i < len(session.Messages); i++ {
 		entry := messageToEntry(session.Messages[i], session.ID)
 		if err := a.store.Append(ctx, session.ID, entry); err != nil {
@@ -156,7 +153,6 @@ func (a *SessionAdapter) List(ctx context.Context, limit int, offset int) ([]str
 		return nil, err
 	}
 
-	// Apply offset.
 	if offset > 0 {
 		if offset >= len(names) {
 			return nil, nil
@@ -164,7 +160,6 @@ func (a *SessionAdapter) List(ctx context.Context, limit int, offset int) ([]str
 		names = names[offset:]
 	}
 
-	// Apply limit.
 	if limit > 0 && limit < len(names) {
 		names = names[:limit]
 	}
@@ -182,6 +177,14 @@ func generateSessionID() string {
 }
 
 func messageToEntry(msg ports.Message, sessionID string) coretape.TapeEntry {
+	return coretape.NewMessageFromPayload(messageToPayload(msg), coretape.EntryMeta{
+		SessionID: sessionID,
+	})
+}
+
+// messageToPayload converts a ports.Message to a map[string]any payload
+// suitable for tape entry storage. Shared by SessionAdapter and TurnRecorder.
+func messageToPayload(msg ports.Message) map[string]any {
 	payload := map[string]any{
 		"role":    msg.Role,
 		"content": msg.Content,
@@ -207,13 +210,11 @@ func messageToEntry(msg ports.Message, sessionID string) coretape.TapeEntry {
 	if len(msg.Metadata) > 0 {
 		payload["metadata"] = jsonRoundTrip(msg.Metadata)
 	}
-	return coretape.NewMessageFromPayload(payload, coretape.EntryMeta{
-		SessionID: sessionID,
-	})
+	return payload
 }
 
-// jsonRoundTrip marshals v to JSON and back to map[string]any so the payload
-// contains only primitive types that survive JSONL serialization.
+// jsonRoundTrip marshals v to JSON and back so the payload contains only
+// primitive types that survive JSONL serialization.
 func jsonRoundTrip(v any) any {
 	data, err := json.Marshal(v)
 	if err != nil {

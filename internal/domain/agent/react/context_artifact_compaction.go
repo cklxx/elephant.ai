@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 const (
@@ -97,7 +98,7 @@ func (e *ReactEngine) tryArtifactCompaction(
 		if err := services.TurnRecorder.RecordCompactionArtifact(ctx, plan.summarySource, meta); err != nil {
 			e.logger.Warn("Tape compaction artifact write failed: %v", err)
 		}
-		if err := services.TurnRecorder.RecordCompression(ctx, "compression", meta); err != nil {
+		if err := services.TurnRecorder.RecordCompression(ctx, agent.LabelCompression, meta); err != nil {
 			e.logger.Warn("Tape compression anchor write failed: %v", err)
 		}
 		artifactRef = "tape"

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // delayedSummaryTurns is how many additional ReAct iterations to wait before
@@ -43,7 +44,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		)
 		state.Messages = applied
 		clearPendingSummary(state)
-		e.recordCompressionAnchor(ctx, services, "deferred_summary_applied", estimated, afterApply)
+		e.recordCompressionAnchor(ctx, services, agent.LabelDeferredSummaryApplied, estimated, afterApply)
 		if afterApply <= limit {
 			return applied
 		}
@@ -102,7 +103,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		e.logger.Info("Pending summary applied early (budget exceeded): %d → %d tokens", estimated, afterApply)
 		state.Messages = applied
 		clearPendingSummary(state)
-		e.recordCompressionAnchor(ctx, services, "deferred_summary_applied_early", estimated, afterApply)
+		e.recordCompressionAnchor(ctx, services, agent.LabelDeferredSummaryEarly, estimated, afterApply)
 		if afterApply <= limit {
 			return applied
 		}

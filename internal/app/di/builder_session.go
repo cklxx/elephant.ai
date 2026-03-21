@@ -16,41 +16,31 @@ import (
 	"alex/internal/infra/tape"
 )
 
-func (b *containerBuilder) buildSessionResources() sessionResources {
-	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
+// tapeStore returns the shared FileStore for all tape-backed components.
+// Falls back to an in-memory store on failure.
+func (b *containerBuilder) tapeStore() coretape.TapeStore {
+	store, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
 	if err != nil {
 		b.logger.Error("Failed to create tape store: %v; falling back to in-memory", err)
-		tapeStore = nil
+		return tape.NewMemoryStore()
 	}
-	var sessionStore agentstorage.SessionStore
-	if tapeStore != nil {
-		sessionStore = tape.NewSessionAdapter(tapeStore)
-	} else {
-		sessionStore = tape.NewSessionAdapter(tape.NewMemoryStore())
-	}
+	return store
+}
+
+func (b *containerBuilder) buildSessionResources() sessionResources {
 	return sessionResources{
-		sessionStore: sessionStore,
+		sessionStore: tape.NewSessionAdapter(b.tapeStore()),
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
 	}
 }
 
 func (b *containerBuilder) buildTapeMessageReader() *tape.MessageReader {
-	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
-	if err != nil {
-		b.logger.Error("Failed to create tape store for MessageReader: %v", err)
-		return nil
-	}
-	return tape.NewMessageReader(tapeStore)
+	return tape.NewMessageReader(b.tapeStore())
 }
 
 func (b *containerBuilder) buildTurnRecorder() *tape.TurnRecorder {
-	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
-	if err != nil {
-		b.logger.Error("Failed to create tape store for TurnRecorder: %v", err)
-		return nil
-	}
-	mgr := coretape.NewTapeManager(tapeStore, coretape.TapeContext{})
+	mgr := coretape.NewTapeManager(b.tapeStore(), coretape.TapeContext{})
 	return tape.NewTurnRecorder(mgr)
 }
 
@@ -84,12 +74,7 @@ func (b *containerBuilder) buildMemoryEngine(ctx context.Context) memory.Engine 
 }
 
 func (b *containerBuilder) buildCheckpointStore() *tape.CheckpointStore {
-	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
-	if err != nil {
-		b.logger.Error("Failed to create tape store for checkpoints: %v; falling back to in-memory", err)
-		return tape.NewCheckpointStore(tape.NewMemoryStore(), filepath.Join(b.sessionDir, "checkpoints"))
-	}
-	return tape.NewCheckpointStore(tapeStore, filepath.Join(b.sessionDir, "checkpoints"))
+	return tape.NewCheckpointStore(b.tapeStore(), filepath.Join(b.sessionDir, "checkpoints"))
 }
 
 func (b *containerBuilder) buildDecisionStore() (*decision.Store, error) {
