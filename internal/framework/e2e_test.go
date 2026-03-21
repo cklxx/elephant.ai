@@ -238,6 +238,28 @@ func TestE2E_FullLifecycle(t *testing.T) {
 	if result.Outbounds[0].Content != "Hello from the model!" {
 		t.Errorf("outbound content = %q", result.Outbounds[0].Content)
 	}
+
+	// Verify automatic tape recording: turn_start and turn_end anchors
+	anchors, err := tapeMgr.Query(context.Background(), tape.Query().Kinds(tape.KindAnchor))
+	if err != nil {
+		t.Fatalf("Query anchors: %v", err)
+	}
+	if len(anchors) != 2 {
+		t.Fatalf("expected 2 anchors (turn_start + turn_end), got %d", len(anchors))
+	}
+	if anchors[0].Payload["label"] != "turn_start" {
+		t.Errorf("first anchor = %v, want turn_start", anchors[0].Payload["label"])
+	}
+	if anchors[1].Payload["label"] != "turn_end" {
+		t.Errorf("second anchor = %v, want turn_end", anchors[1].Payload["label"])
+	}
+	// Verify anchors carry session/run metadata
+	if anchors[0].Meta.SessionID != "test-session" {
+		t.Errorf("turn_start session_id = %q, want test-session", anchors[0].Meta.SessionID)
+	}
+	if anchors[0].Meta.RunID != "test-run-1" {
+		t.Errorf("turn_start run_id = %q, want test-run-1", anchors[0].Meta.RunID)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -336,9 +358,9 @@ func TestE2E_TapeAuditTrail(t *testing.T) {
 	fw := New(Config{TapeManager: tapeMgr})
 	fw.RegisterPlugin(plugin)
 
-	// Manually append tape entries to simulate what a real plugin would do
 	ctx := context.Background()
-	_ = tapeMgr.Append(ctx, tape.NewAnchor("turn_start", tape.EntryMeta{RunID: "run-audit"}))
+
+	// Append a user message before processing (simulates what a real plugin would do)
 	_ = tapeMgr.Append(ctx, tape.NewMessage("user", "Hello", tape.EntryMeta{RunID: "run-audit"}))
 
 	env := envelope.New(map[string]any{"content": "Hello"})
@@ -351,40 +373,45 @@ func TestE2E_TapeAuditTrail(t *testing.T) {
 	_ = tapeMgr.Append(ctx, tape.NewMessage("assistant", "Hello from the model!", tape.EntryMeta{RunID: "run-audit"}))
 
 	// Query tape and verify entries
+	// Expected order: user_message, turn_start (auto), turn_end (auto), assistant_message
 	entries, err := tapeMgr.Query(ctx, tape.Query())
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
-	if len(entries) < 3 {
-		t.Fatalf("expected at least 3 tape entries, got %d", len(entries))
+	if len(entries) < 4 {
+		t.Fatalf("expected at least 4 tape entries, got %d", len(entries))
 	}
 
 	// Verify entry kinds
-	if entries[0].Kind != tape.KindAnchor {
-		t.Errorf("entry[0] kind = %s, want anchor", entries[0].Kind)
+	if entries[0].Kind != tape.KindMessage {
+		t.Errorf("entry[0] kind = %s, want message (user)", entries[0].Kind)
 	}
-	if entries[1].Kind != tape.KindMessage {
-		t.Errorf("entry[1] kind = %s, want message", entries[1].Kind)
-	}
-	if entries[2].Kind != tape.KindMessage {
-		t.Errorf("entry[2] kind = %s, want message", entries[2].Kind)
+	if entries[1].Kind != tape.KindAnchor {
+		t.Errorf("entry[1] kind = %s, want anchor (turn_start)", entries[1].Kind)
 	}
 
-	// Verify tape query filtering
+	// Verify turn_start and turn_end anchors exist
+	anchors, err := tapeMgr.Query(ctx, tape.Query().Kinds(tape.KindAnchor))
+	if err != nil {
+		t.Fatalf("Query anchors: %v", err)
+	}
+	if len(anchors) != 2 {
+		t.Fatalf("expected 2 anchors (turn_start + turn_end), got %d", len(anchors))
+	}
+	if anchors[0].Payload["label"] != "turn_start" {
+		t.Errorf("first anchor label = %v, want turn_start", anchors[0].Payload["label"])
+	}
+	if anchors[1].Payload["label"] != "turn_end" {
+		t.Errorf("second anchor label = %v, want turn_end", anchors[1].Payload["label"])
+	}
+
+	// Verify tape query filtering for messages
 	msgs, err := tapeMgr.Query(ctx, tape.Query().Kinds(tape.KindMessage))
 	if err != nil {
 		t.Fatalf("Query kinds: %v", err)
 	}
 	if len(msgs) != 2 {
 		t.Errorf("expected 2 messages, got %d", len(msgs))
-	}
-
-	anchors, err := tapeMgr.Query(ctx, tape.Query().Kinds(tape.KindAnchor))
-	if err != nil {
-		t.Fatalf("Query anchors: %v", err)
-	}
-	if len(anchors) != 1 {
-		t.Errorf("expected 1 anchor, got %d", len(anchors))
 	}
 }
 

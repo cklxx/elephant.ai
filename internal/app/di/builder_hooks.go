@@ -157,6 +157,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
+		agentcoordinator.WithTapeManager(parent.TapeManager),
 	)
 
 	// Inherit runtime config resolver from parent coordinator so that

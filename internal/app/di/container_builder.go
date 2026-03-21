@@ -117,6 +117,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	checkpointStore := b.buildCheckpointStore()
 	credentialRefresher := buildCredentialRefresher()
+	tapeMgr := b.buildTapeManager()
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -134,7 +135,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
 		agentcoordinator.WithChannelHints(channels.DefaultHints()),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
-		agentcoordinator.WithTurnRecorder(b.buildTurnRecorder()),
+		agentcoordinator.WithTurnRecorder(b.buildTurnRecorder(tapeMgr)),
+		agentcoordinator.WithTapeManager(tapeMgr),
 	)
 
 	b.logger.Info("Container built successfully (heavy initialization deferred to Start())")
@@ -148,6 +150,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		CostTracker:      costTracker,
 		MemoryEngine:     memoryEngine,
 		CheckpointStore:  checkpointStore,
+		TapeManager:      tapeMgr,
 		TaskStore:        taskStore,
 		DecisionStore:    decisionStore,
 		config:           b.config,

@@ -9,6 +9,7 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
+	coretape "alex/internal/core/tape"
 	lark "alex/internal/delivery/channels/lark"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
@@ -44,6 +45,7 @@ type Container struct {
 	CostTracker      agentstorage.CostTracker
 	MemoryEngine     memory.Engine
 	CheckpointStore  react.CheckpointStore
+	TapeManager      *coretape.TapeManager
 	TaskStore        taskdomain.Store     // Unified durable task store (nil when unavailable)
 	DecisionStore    *decision.Store      // Team decision memory (nil when unavailable)
 	LarkGateway      LarkGateway

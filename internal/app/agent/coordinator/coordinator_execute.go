@@ -39,7 +39,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	wf.start(stagePrepare)
 
 	// Create Framework with bridge plugin
-	fw := framework.New(framework.Config{})
+	fw := framework.New(framework.Config{
+		TapeManager: c.tapeManager,
+	})
 	bridge := newBridgePlugin(c)
 	bridge.sessionID = sessionID
 	bridge.ensuredRunID = ensuredRunID

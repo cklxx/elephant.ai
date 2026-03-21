@@ -39,8 +39,11 @@ func (b *containerBuilder) buildTapeMessageReader() *tape.MessageReader {
 	return tape.NewMessageReader(b.tapeStore())
 }
 
-func (b *containerBuilder) buildTurnRecorder() *tape.TurnRecorder {
-	mgr := coretape.NewTapeManager(b.tapeStore(), coretape.TapeContext{})
+func (b *containerBuilder) buildTapeManager() *coretape.TapeManager {
+	return coretape.NewTapeManager(b.tapeStore(), coretape.TapeContext{})
+}
+
+func (b *containerBuilder) buildTurnRecorder(mgr *coretape.TapeManager) *tape.TurnRecorder {
 	return tape.NewTurnRecorder(mgr)
 }
 

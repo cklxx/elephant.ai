@@ -11,6 +11,7 @@ import (
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/preparation"
 	corehook "alex/internal/core/hook"
+	coretape "alex/internal/core/tape"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -60,6 +61,7 @@ type coordinatorIntegrations struct {
 	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
 	turnRecorder        agent.TurnRecorder
+	tapeManager         *coretape.TapeManager
 }
 
 // coordinatorSessionSave groups the debounced session-save mechanism.

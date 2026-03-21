@@ -3,6 +3,7 @@ package coordinator
 import (
 	"alex/internal/app/agent/preparation"
 	corehook "alex/internal/core/hook"
+	coretape "alex/internal/core/tape"
 	agent "alex/internal/domain/agent/ports/agent"
 	react "alex/internal/domain/agent/react"
 	toolspolicy "alex/internal/infra/tools"
@@ -94,6 +95,15 @@ func WithTurnRecorder(recorder agent.TurnRecorder) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if recorder != nil {
 			c.turnRecorder = recorder
+		}
+	}
+}
+
+// WithTapeManager provides a TapeManager for framework-level turn lifecycle recording.
+func WithTapeManager(mgr *coretape.TapeManager) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if mgr != nil {
+			c.tapeManager = mgr
 		}
 	}
 }

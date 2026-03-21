@@ -49,6 +49,9 @@ func (t *turnExecutor) execute(ctx context.Context, env envelope.Envelope) (*hoo
 	result.SessionID = state.SessionID
 	result.RunID = state.RunID
 
+	// Record turn_start after session/run IDs are known.
+	t.recordAnchor(ctx, "turn_start", state)
+
 	// Step 2: load_state
 	if err := t.handleError(ctx, state, "load_state", t.loadState(ctx, state)); err != nil {
 		result.Error = err
@@ -108,6 +111,9 @@ func (t *turnExecutor) execute(ctx context.Context, env envelope.Envelope) (*hoo
 		result.Error = err
 		return result, err
 	}
+
+	// Record turn_end after all steps complete.
+	t.recordAnchor(ctx, "turn_end", state)
 
 	return result, nil
 }
@@ -216,6 +222,9 @@ func (t *turnExecutor) handleError(ctx context.Context, state *hook.TurnState, s
 		return nil
 	}
 
+	// Record the error to tape before calling error handlers.
+	t.recordError(ctx, step, err, state)
+
 	// Call error handlers but still return the original error if no handler overrides.
 	_, handlerErrs := hook.CallMany[any](ctx, t.hooks, func(p hook.Plugin) (any, bool, error) {
 		if eh, ok := p.(hook.ErrorHandler); ok {
@@ -230,6 +239,30 @@ func (t *turnExecutor) handleError(ctx context.Context, state *hook.TurnState, s
 	}
 
 	return fmt.Errorf("%s: %w", step, err)
+}
+
+// recordAnchor writes a lifecycle boundary anchor to the tape.
+func (t *turnExecutor) recordAnchor(ctx context.Context, label string, state *hook.TurnState) {
+	if t.tapes == nil {
+		return
+	}
+	meta := tape.EntryMeta{
+		SessionID: state.SessionID,
+		RunID:     state.RunID,
+	}
+	_ = t.tapes.Append(ctx, tape.NewAnchor(label, meta))
+}
+
+// recordError writes a step error to the tape.
+func (t *turnExecutor) recordError(ctx context.Context, step string, err error, state *hook.TurnState) {
+	if t.tapes == nil {
+		return
+	}
+	meta := tape.EntryMeta{
+		SessionID: state.SessionID,
+		RunID:     state.RunID,
+	}
+	_ = t.tapes.Append(ctx, tape.NewError(err.Error(), step, meta))
 }
 
 // firstError returns the first non-nil error from a slice, or nil.
