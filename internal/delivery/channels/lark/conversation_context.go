@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -88,28 +90,20 @@ func buildToolContextSummary(toolName string, args map[string]any) string {
 	case respondToolName:
 		mode, _ := args["mode"].(string)
 		reply, _ := args["reply"].(string)
-		if len([]rune(reply)) > 60 {
-			reply = string([]rune(reply)[:60]) + "..."
-		}
+		reply = utils.Truncate(reply, 60, "...")
 		switch mode {
-		case "delegate":
+		case modeDelegate:
 			task, _ := args["task"].(string)
-			if len([]rune(task)) > 60 {
-				task = string([]rune(task)[:60]) + "..."
-			}
+			task = utils.Truncate(task, 60, "...")
 			return fmt.Sprintf("[delegate] %s → worker: %s", reply, task)
-		case "think":
+		case modeThink:
 			return fmt.Sprintf("[think] %s", reply)
 		default:
 			return fmt.Sprintf("[%s] %s", mode, reply)
 		}
 	case dispatchWorkerToolName:
-		// Legacy tool — keep for backward compatibility.
 		task, _ := args["task"].(string)
-		if len([]rune(task)) > 60 {
-			task = string([]rune(task)[:60]) + "..."
-		}
-		return fmt.Sprintf("dispatched worker: %s", task)
+		return fmt.Sprintf("dispatched worker: %s", utils.Truncate(task, 60, "..."))
 	case stopWorkerToolName:
 		taskID, _ := args["task_id"].(string)
 		if taskID == "" {

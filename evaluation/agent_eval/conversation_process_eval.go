@@ -191,7 +191,8 @@ func evalOneScenario(
 
 	result.Pass = toolSetsMatch(sc.ExpectedTools, result.ActualTools)
 	// If expected_mode is set, also validate mode selection.
-	if result.Pass && sc.ExpectedMode != "" && result.ActualMode != "" {
+	// Missing ActualMode when ExpectedMode is set counts as a failure.
+	if result.Pass && sc.ExpectedMode != "" {
 		result.Pass = result.ActualMode == sc.ExpectedMode
 	}
 	return result

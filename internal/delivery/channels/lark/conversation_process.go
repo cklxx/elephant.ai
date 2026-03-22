@@ -25,6 +25,12 @@ const (
 	// Legacy tool name kept for reference during migration.
 	dispatchWorkerToolName = "dispatch_worker"
 
+	// Brain response mode constants.
+	modeDirect   = "direct"
+	modeThink    = "think"
+	modeDelegate = "delegate"
+	modeStream   = "stream"
+
 	conversationChatHistoryMaxRounds = 5
 	conversationPromptCacheTTL       = 60 * time.Second
 )
@@ -37,10 +43,10 @@ type memoryCacheEntry struct {
 
 // respondModes enumerates valid brain response modes.
 var respondModes = map[string]bool{
-	"direct":   true,
-	"think":    true,
-	"delegate": true,
-	"stream":   true, // placeholder — falls back to direct
+	modeDirect:   true,
+	modeThink:    true,
+	modeDelegate: true,
+	modeStream:   true, // placeholder — falls back to direct
 }
 
 // buildRespondTool constructs the unified respond tool definition.
@@ -63,7 +69,7 @@ func (g *Gateway) buildRespondTool() ports.ToolDefinition {
 				"mode": {
 					Type:        "string",
 					Description: "Response mode: direct | think | delegate | stream",
-					Enum:        []any{"direct", "think", "delegate", "stream"},
+					Enum:        []any{modeDirect, modeThink, modeDelegate, modeStream},
 				},
 				"reply": {
 					Type:        "string",
@@ -477,7 +483,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		processingReactionID = g.addProcessingReaction(ctx, msg.messageID)
 	}()
 
-	reply, toolCalls, llmErr := g.conversationLLMDynamic(ctx, msg, allWorkers, chatHistory, pf)
+	reply, toolCalls, llmErr := g.conversationLLMDynamic(ctx, msg, allWorkers, chatHistory, pf, urgencyCtx)
 
 	// Wait for reaction goroutine to finish so we have the ID for removal.
 	<-reactionDone
@@ -510,10 +516,26 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// replySent tracks whether we already replied for this message.
 	replySent := false
+	// trySendAck extracts ack from tool args and sends it if not already sent.
+	trySendAck := func(tc ports.ToolCall) {
+		if replySent {
+			return
+		}
+		ack, _ := tc.Arguments["ack"].(string)
+		if ack == "" {
+			ack = reply
+		}
+		if ack != "" {
+			g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+			replySent = true
+		}
+	}
 
 	for _, tc := range toolCalls {
-		// Record tool invocation in sliding context.
-		g.recordToolContext(msg.chatID, tc.Name, tc.Arguments)
+		// Record tool invocation in sliding context (skip trivial direct replies).
+		if tc.Name != respondToolName || tc.Arguments["mode"] != modeDirect {
+			g.recordToolContext(msg.chatID, tc.Name, tc.Arguments)
+		}
 
 		switch tc.Name {
 		case respondToolName:
@@ -524,23 +546,23 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			// Validate mode — invalid mode falls back to direct.
 			if !respondModes[mode] {
 				logger.Warn("conversation: invalid mode=%q, falling back to direct for msg=%s", mode, msg.messageID)
-				mode = "direct"
+				mode = modeDirect
 			}
 
 			// Log brain decision for mode analytics.
-			g.logBrainDecision(msg, mode, urgencyCtx)
+			g.logBrainDecision(msg, mode, lang, urgencyCtx)
 
 			logger.Info("conversation: brain mode=%s msg=%s reply_len=%d", mode, msg.messageID, len(replyArg))
 
 			switch mode {
-			case "direct", "stream":
+			case modeDirect, modeStream:
 				// Send the reply immediately. Stream mode falls back to direct.
 				if replyArg != "" && !replySent {
 					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
 					replySent = true
 				}
 
-			case "think":
+			case modeThink:
 				// Phase 1: send quick take immediately.
 				if replyArg != "" && !replySent {
 					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
@@ -549,7 +571,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 				// Phase 2: spawn goroutine for secondary LLM call.
 				g.spawnThinkMode(ctx, msg, replyArg, pf, allWorkers, chatHistory, urgencyCtx, level)
 
-			case "delegate":
+			case modeDelegate:
 				// Send informative ack, then spawn or inject worker.
 				if replyArg != "" && !replySent {
 					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
@@ -569,41 +591,21 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		case stopWorkerToolName:
 			taskIDArg, _ := tc.Arguments["task_id"].(string)
 			g.executeStopWorkerExtended(ctx, slotMap, taskIDArg)
-			ack, _ := tc.Arguments["ack"].(string)
-			if ack == "" {
-				ack = reply
-			}
-			if ack != "" && !replySent {
-				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-				replySent = true
-			}
-			// Cancel any active think mode for this chat.
+			trySendAck(tc)
 			g.cancelThinkMode(msg.chatID)
 
 		case queryTasksToolName:
 			result := g.executeQueryTasks(ctx, msg, tc.Arguments)
 			logger.Info("conversation: query_tasks result_len=%d", len(result))
-			ack, _ := tc.Arguments["ack"].(string)
-			if ack != "" && !replySent {
-				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-				replySent = true
-			}
+			trySendAck(tc)
 		case queryUsageToolName:
 			result := g.executeQueryUsage(ctx, msg, tc.Arguments)
 			logger.Info("conversation: query_usage result_len=%d", len(result))
-			ack, _ := tc.Arguments["ack"].(string)
-			if ack != "" && !replySent {
-				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-				replySent = true
-			}
+			trySendAck(tc)
 		case manageNoticeToolName:
 			result := g.executeManageNotice(msg, tc.Arguments)
 			logger.Info("conversation: manage_notice result=%s", utils.Truncate(result, 60, "..."))
-			ack, _ := tc.Arguments["ack"].(string)
-			if ack != "" && !replySent {
-				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-				replySent = true
-			}
+			trySendAck(tc)
 
 		// Legacy: handle dispatch_worker tool calls from cached prompts.
 		case dispatchWorkerToolName:
@@ -611,14 +613,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			if taskArg == "" {
 				taskArg = msg.content
 			}
-			ack, _ := tc.Arguments["ack"].(string)
-			if ack == "" {
-				ack = reply // fallback to text reply as ack
-			}
-			if ack != "" && !replySent {
-				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-				replySent = true
-			}
+			trySendAck(tc)
 			g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
 		}
 	}
@@ -685,11 +680,7 @@ func (g *Gateway) spawnThinkMode(ctx context.Context, msg *incomingMessage, quic
 		}
 
 		// Prepend quote reference to link back to original question.
-		msgContent := strings.TrimSpace(msg.content)
-		if len([]rune(msgContent)) > 30 {
-			msgContent = string([]rune(msgContent)[:30]) + "..."
-		}
-		enriched = "关于「" + msgContent + "」：" + enriched
+		enriched = "关于「" + utils.Truncate(strings.TrimSpace(msg.content), 30, "...") + "」：" + enriched
 
 		g.sendReply(ctx, msg.chatID, "", enriched, level)
 	}()
@@ -708,8 +699,13 @@ func (g *Gateway) sendThinkFallback(ctx context.Context, msg *incomingMessage, l
 }
 
 // setThinkCancel stores a think mode cancel function for a chat.
+// Cancels any previously active think goroutine for this chat first.
 func (g *Gateway) setThinkCancel(chatID string, cancel context.CancelFunc) {
-	g.thinkCancels.Store(chatID, cancel)
+	if prev, ok := g.thinkCancels.Swap(chatID, cancel); ok {
+		if prevCancel, ok := prev.(context.CancelFunc); ok {
+			prevCancel()
+		}
+	}
 }
 
 // clearThinkCancel removes the think cancel for a chat.
@@ -737,6 +733,7 @@ type conversationLLMOpts struct {
 	extraContext   string // pre-fetched data injected before user message
 	chatID         string // when set, inject sliding context from chatConversationContext
 	hasQueryTools  bool   // when true, inject narration voice section into system prompt
+	urgencyCtx     string // urgency context to inject into system prompt
 }
 
 // conversationLLMCall is the unified conversation LLM entry point.
@@ -753,7 +750,7 @@ func (g *Gateway) conversationLLMCall(ctx context.Context, opts conversationLLMO
 	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultConversationTimeout)
 	defer cancel()
 
-	systemPrompt := g.buildConversationSystemPrompt(ctx, opts.senderID, opts.hasQueryTools)
+	systemPrompt := g.buildConversationSystemPrompt(ctx, opts.senderID, opts.hasQueryTools, opts.urgencyCtx)
 
 	var sb strings.Builder
 	sb.WriteString("Worker status: ")
@@ -799,8 +796,8 @@ func (g *Gateway) conversationLLMCall(ctx context.Context, opts conversationLLMO
 }
 
 // conversationLLMDynamic calls the conversation LLM with dynamic tools and token budget
-// based on the prefetch result. Injects sliding context and pre-fetched data.
-func (g *Gateway) conversationLLMDynamic(ctx context.Context, msg *incomingMessage, workers workerSnapshotList, chatHistory string, pf prefetchResult) (string, []ports.ToolCall, error) {
+// based on the prefetch result. Injects sliding context, pre-fetched data, and urgency.
+func (g *Gateway) conversationLLMDynamic(ctx context.Context, msg *incomingMessage, workers workerSnapshotList, chatHistory string, pf prefetchResult, urgencyCtx string) (string, []ports.ToolCall, error) {
 	return g.conversationLLMCall(ctx, conversationLLMOpts{
 		senderID:      msg.senderID,
 		userMsg:       msg.content,
@@ -811,6 +808,7 @@ func (g *Gateway) conversationLLMDynamic(ctx context.Context, msg *incomingMessa
 		extraContext:  pf.extraContext,
 		chatID:        msg.chatID,
 		hasQueryTools: pf.hasQueryTools,
+		urgencyCtx:    urgencyCtx,
 	})
 }
 
@@ -886,10 +884,11 @@ func (g *Gateway) evictExpiredPromptCache() {
 // ---------------------------------------------------------------------------
 
 // urgencyFrustrationMarkers are message patterns indicating user frustration.
+// Avoid single-character punctuation (!, ！) — too broad, matches normal messages.
 var urgencyFrustrationMarkers = []string{
-	"又", "怎么又", "还是", "又挂了", "又出问题", "又失败",
+	"怎么又", "又挂了", "又出问题", "又失败", "又报错",
 	"wtf", "again", "still broken", "not working",
-	"!", "！", "??", "？？",
+	"??", "？？", "!!!", "！！！",
 }
 
 // detectUrgency returns an urgency context string to inject into the brain prompt.
@@ -924,9 +923,9 @@ func detectUrgency(content string, now time.Time) string {
 // ---------------------------------------------------------------------------
 
 // logBrainDecision logs a structured event for each brain mode decision.
-func (g *Gateway) logBrainDecision(msg *incomingMessage, mode, urgencyCtx string) {
+func (g *Gateway) logBrainDecision(msg *incomingMessage, mode, lang, urgencyCtx string) {
 	g.logger.Info("brain_decision: mode=%s chat=%s sender=%s msg_len=%d lang=%s urgency=%q",
-		mode, msg.chatID, msg.senderID, len([]rune(msg.content)), detectLang(msg.content), urgencyCtx)
+		mode, msg.chatID, msg.senderID, len([]rune(msg.content)), lang, urgencyCtx)
 }
 
 // getOrCreateSlotMap returns (or lazily creates) the chatSlotMap for a chat.
