@@ -49,8 +49,9 @@ func (t *turnExecutor) execute(ctx context.Context, env envelope.Envelope) (*hoo
 	result.SessionID = state.SessionID
 	result.RunID = state.RunID
 
-	// Record turn_start after session/run IDs are known.
+	// Record turn_start after session/run IDs are known; turn_end on exit.
 	t.recordAnchor(ctx, "turn_start", state)
+	defer t.recordAnchor(ctx, "turn_end", state)
 
 	// Step 2: load_state
 	if err := t.handleError(ctx, state, "load_state", t.loadState(ctx, state)); err != nil {
@@ -111,9 +112,6 @@ func (t *turnExecutor) execute(ctx context.Context, env envelope.Envelope) (*hoo
 		result.Error = err
 		return result, err
 	}
-
-	// Record turn_end after all steps complete.
-	t.recordAnchor(ctx, "turn_end", state)
 
 	return result, nil
 }

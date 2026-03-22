@@ -3,8 +3,8 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	appconfig "alex/internal/app/agent/config"
@@ -35,7 +35,7 @@ func newIntegrationCoordinator(opts ...CoordinatorOption) *AgentCoordinator {
 func TestIntegration_HappyPath(t *testing.T) {
 	store := infratape.NewMemoryStore()
 	tapeMgr := coretape.NewTapeManager(store, coretape.TapeContext{TapeName: "e2e"})
-	listener := &eventCollector{}
+	listener := &capturingListener{}
 
 	coordinator := newIntegrationCoordinator(WithTapeManager(tapeMgr))
 
@@ -51,7 +51,7 @@ func TestIntegration_HappyPath(t *testing.T) {
 		t.Fatalf("tape query: %v", err)
 	}
 	labels := anchorLabels(filterKind(entries, coretape.KindAnchor))
-	if !sliceContains(labels, "turn_start") || !sliceContains(labels, "turn_end") {
+	if !slices.Contains(labels, "turn_start") || !slices.Contains(labels, "turn_end") {
 		t.Errorf("tape: want turn_start+turn_end; got %v", labels)
 	}
 	startIdx, endIdx := labelIndex(entries, "turn_start"), labelIndex(entries, "turn_end")
@@ -91,7 +91,7 @@ func TestIntegration_HappyPath(t *testing.T) {
 
 	// --- SSE Events ---
 	hasLifecycle, hasNode, hasResult := false, false, false
-	for _, evt := range listener.all() {
+	for _, evt := range listener.snapshot() {
 		switch e := evt.(type) {
 		case *domain.Event:
 			switch e.Kind {
@@ -156,25 +156,6 @@ func TestIntegration_ErrorPath(t *testing.T) {
 
 // --- helpers ---
 
-type eventCollector struct {
-	mu     sync.Mutex
-	events []agent.AgentEvent
-}
-
-func (c *eventCollector) OnEvent(evt agent.AgentEvent) {
-	c.mu.Lock()
-	c.events = append(c.events, evt)
-	c.mu.Unlock()
-}
-
-func (c *eventCollector) all() []agent.AgentEvent {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	cp := make([]agent.AgentEvent, len(c.events))
-	copy(cp, c.events)
-	return cp
-}
-
 func filterKind(entries []coretape.TapeEntry, kind coretape.EntryKind) []coretape.TapeEntry {
 	var out []coretape.TapeEntry
 	for _, e := range entries {
@@ -204,13 +185,4 @@ func labelIndex(entries []coretape.TapeEntry, label string) int {
 		}
 	}
 	return -1
-}
-
-func sliceContains(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

@@ -8,6 +8,7 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/lifecycle"
+	coretape "alex/internal/core/tape"
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
@@ -21,10 +22,11 @@ import (
 )
 
 type containerBuilder struct {
-	config     Config
-	logger     logging.Logger
-	sessionDir string
-	costDir    string
+	config        Config
+	logger        logging.Logger
+	sessionDir    string
+	costDir       string
+	cachedTapeStore coretape.TapeStore
 }
 
 type sessionResources struct {

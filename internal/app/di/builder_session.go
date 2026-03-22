@@ -17,14 +17,19 @@ import (
 )
 
 // tapeStore returns the shared FileStore for all tape-backed components.
-// Falls back to an in-memory store on failure.
+// Cached after first call so all consumers share one instance.
 func (b *containerBuilder) tapeStore() coretape.TapeStore {
+	if b.cachedTapeStore != nil {
+		return b.cachedTapeStore
+	}
 	store, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
 	if err != nil {
 		b.logger.Error("Failed to create tape store: %v; falling back to in-memory", err)
-		return tape.NewMemoryStore()
+		b.cachedTapeStore = tape.NewMemoryStore()
+	} else {
+		b.cachedTapeStore = store
 	}
-	return store
+	return b.cachedTapeStore
 }
 
 func (b *containerBuilder) buildSessionResources() sessionResources {

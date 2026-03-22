@@ -47,6 +47,14 @@ func (c *capturingListener) OnEvent(evt agent.AgentEvent) {
 	c.mu.Unlock()
 }
 
+func (c *capturingListener) snapshot() []agent.AgentEvent {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cp := make([]agent.AgentEvent, len(c.events))
+	copy(cp, c.events)
+	return cp
+}
+
 func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventEnvelope {
 	c.mu.Lock()
 	defer c.mu.Unlock()
