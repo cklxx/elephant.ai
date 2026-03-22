@@ -42,7 +42,6 @@ func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, clie
 		tracker:   d.tracker,
 		logger:    d.logger,
 		clock:     d.clock,
-		ctx:       ctx,
 	}
 }
 
@@ -53,7 +52,6 @@ type costTrackingWrapper struct {
 	tracker   storage.CostTracker
 	logger    agent.Logger
 	clock     agent.Clock
-	ctx       context.Context
 }
 
 var (
@@ -68,7 +66,7 @@ func (w *costTrackingWrapper) Complete(ctx context.Context, req ports.Completion
 		return resp, err
 	}
 
-	w.recordUsage(resp)
+	w.recordUsage(ctx, resp)
 	return resp, nil
 }
 
@@ -87,7 +85,7 @@ func (w *costTrackingWrapper) StreamComplete(
 		if streaming, ok := w.client.(llm.StreamingLLMClient); ok {
 			resp, err := streaming.StreamComplete(ctx, req, callbacks)
 			if err == nil {
-				w.recordUsage(resp)
+				w.recordUsage(ctx, resp)
 			}
 			return resp, err
 		}
@@ -106,11 +104,11 @@ func (w *costTrackingWrapper) StreamComplete(
 		cb(ports.ContentDelta{Final: true})
 	}
 
-	w.recordUsage(resp)
+	w.recordUsage(ctx, resp)
 	return resp, nil
 }
 
-func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
+func (w *costTrackingWrapper) recordUsage(ctx context.Context, resp *ports.CompletionResponse) {
 	if w.tracker == nil || resp == nil {
 		return
 	}
@@ -125,13 +123,13 @@ func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
 		Timestamp:    w.clock.Now(),
 	}
 
-	record.InputCost, record.OutputCost, record.TotalCost = storage.CalculateCost(
+	record.InputCost, record.OutputCost, record.TotalCost = CalculateCost(
 		resp.Usage.PromptTokens,
 		resp.Usage.CompletionTokens,
 		w.client.Model(),
 	)
 
-	if err := w.tracker.RecordUsage(w.ctx, record); err != nil {
+	if err := w.tracker.RecordUsage(ctx, record); err != nil {
 		w.logger.Warn("Failed to record cost for session %s: %v", w.sessionID, err)
 	}
 }
