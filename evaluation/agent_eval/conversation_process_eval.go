@@ -22,7 +22,8 @@ type ConversationScenario struct {
 	Category      string   `yaml:"category"`
 	Intent        string   `yaml:"intent"`
 	ExpectedTools []string `yaml:"expected_tools"`
-	WorkerStatus  string   `yaml:"worker_status,omitempty"` // custom worker status; default "all idle"
+	ExpectedMode  string   `yaml:"expected_mode,omitempty"`  // expected mode arg for respond tool (direct/think/delegate)
+	WorkerStatus  string   `yaml:"worker_status,omitempty"`  // custom worker status; default "all idle"
 }
 
 // ConversationDataset holds the full scenario set.
@@ -40,6 +41,8 @@ type ConversationEvalResult struct {
 	Intent        string
 	ExpectedTools []string
 	ActualTools   []string
+	ExpectedMode  string
+	ActualMode    string
 	Reply         string
 	Pass          bool
 	Latency       time.Duration
@@ -175,11 +178,22 @@ func evalOneScenario(
 	}
 
 	result.Reply = resp.Content
+	result.ExpectedMode = sc.ExpectedMode
 	for _, tc := range resp.ToolCalls {
 		result.ActualTools = append(result.ActualTools, tc.Name)
+		// Extract mode from respond tool calls.
+		if tc.Name == "respond" {
+			if mode, ok := tc.Arguments["mode"].(string); ok {
+				result.ActualMode = mode
+			}
+		}
 	}
 
 	result.Pass = toolSetsMatch(sc.ExpectedTools, result.ActualTools)
+	// If expected_mode is set, also validate mode selection.
+	if result.Pass && sc.ExpectedMode != "" && result.ActualMode != "" {
+		result.Pass = result.ActualMode == sc.ExpectedMode
+	}
 	return result
 }
 
@@ -230,8 +244,12 @@ func FormatConversationEvalReport(summary *ConversationEvalSummary) string {
 	if len(failures) > 0 {
 		sb.WriteString("\n## Failures\n\n")
 		for _, f := range failures {
-			sb.WriteString(fmt.Sprintf("- **%s** (%s): intent=%q expected=%v actual=%v reply=%q\n",
-				f.ScenarioID, f.Category, f.Intent, f.ExpectedTools, f.ActualTools, f.Reply))
+			modeInfo := ""
+		if f.ExpectedMode != "" || f.ActualMode != "" {
+			modeInfo = fmt.Sprintf(" expected_mode=%s actual_mode=%s", f.ExpectedMode, f.ActualMode)
+		}
+		sb.WriteString(fmt.Sprintf("- **%s** (%s): intent=%q expected=%v actual=%v%s reply=%q\n",
+				f.ScenarioID, f.Category, f.Intent, f.ExpectedTools, f.ActualTools, modeInfo, f.Reply))
 			if f.Error != "" {
 				sb.WriteString(fmt.Sprintf("  error: %s\n", f.Error))
 			}

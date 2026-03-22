@@ -115,6 +115,7 @@ type Gateway struct {
 	activeChatSlots         sync.Map  // chatID → *chatSlotMap (conversation-process path only)
 	chatContexts            sync.Map  // chatID → *chatConversationContext (sliding tool context)
 	conversationPromptCache sync.Map  // senderID → *memoryCacheEntry
+	thinkCancels            sync.Map  // chatID → context.CancelFunc (active think mode cancellation)
 	forkSlots               forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow

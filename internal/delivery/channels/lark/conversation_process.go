@@ -19,8 +19,11 @@ const (
 	conversationMaxTok = 10240
 	conversationTemp           = 0.3
 
-	dispatchWorkerToolName = "dispatch_worker"
+	respondToolName        = "respond"
 	stopWorkerToolName     = "stop_worker"
+
+	// Legacy tool name kept for reference during migration.
+	dispatchWorkerToolName = "dispatch_worker"
 
 	conversationChatHistoryMaxRounds = 5
 	conversationPromptCacheTTL       = 60 * time.Second
@@ -32,30 +35,46 @@ type memoryCacheEntry struct {
 	expiresAt time.Time
 }
 
-// buildDispatchWorkerTool constructs the dispatch_worker tool definition,
-// embedding the skills catalog in the tool description so the LLM can
-// accurately match user requests to worker capabilities.
-func (g *Gateway) buildDispatchWorkerTool() ports.ToolDefinition {
-	desc := "When the user wants something done (coding, research, analysis, writing) → launch a background agent. Also use when injecting follow-up context into a running task. The agent notifies the user on completion. Returns task_id."
+// respondModes enumerates valid brain response modes.
+var respondModes = map[string]bool{
+	"direct":   true,
+	"think":    true,
+	"delegate": true,
+	"stream":   true, // placeholder — falls back to direct
+}
+
+// buildRespondTool constructs the unified respond tool definition.
+// The brain uses this single tool to choose a response mode and generate a reply.
+func (g *Gateway) buildRespondTool() ports.ToolDefinition {
+	desc := "Choose how to respond to the user. Modes:\n" +
+		"- direct: you know the answer → reply immediately\n" +
+		"- think: you need to look something up or reason (5-15s) → give a quick take, then a deeper follow-up\n" +
+		"- delegate: this needs real work (coding, research, multi-step) → describe what you'll do, then launch a worker\n" +
+		"- stream: (reserved, behaves like direct for now)"
 	if g.cfg.ConversationWorkerCapabilities != "" {
-		desc += "\n\nScenario → skill mapping:\n" + g.cfg.ConversationWorkerCapabilities
+		desc += "\n\nWorker capabilities:\n" + g.cfg.ConversationWorkerCapabilities
 	}
 	return ports.ToolDefinition{
-		Name:        dispatchWorkerToolName,
+		Name:        respondToolName,
 		Description: desc,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
+				"mode": {
+					Type:        "string",
+					Description: "Response mode: direct | think | delegate | stream",
+					Enum:        []any{"direct", "think", "delegate", "stream"},
+				},
+				"reply": {
+					Type:        "string",
+					Description: "Your reply to the user. In direct mode this is the final answer. In think mode this is a quick take. In delegate mode this describes what you'll do.",
+				},
 				"task": {
 					Type:        "string",
-					Description: "Task description preserving the user's original intent. When a skill matches, include 'skill:<name>' in the task.",
-				},
-				"ack": {
-					Type:        "string",
-					Description: "One-sentence reply shown to the user describing what you're about to do. Be specific about the action, not generic. E.g. '正在检查 kaku panel 状态' / '搜索最新 agent 记忆论文' / 'checking kaku panel status'. Max 20 chars in Chinese, 30 chars in English. No period at end.",
+					Description: "Task description for the background worker (required for delegate mode, ignored otherwise). Preserve user's original intent. When a skill matches, include 'skill:<name>'.",
 				},
 			},
-			Required: []string{"task", "ack"},
+			Required: []string{"mode", "reply"},
 		},
 	}
 }
@@ -80,36 +99,61 @@ var stopWorkerTool = ports.ToolDefinition{
 }
 
 // defaultConversationReplyRules is the fallback when Config.ConversationReplyRules is empty.
-const defaultConversationReplyRules = `## Reply rules (HARD CONSTRAINTS)
-- 中文: ≤12字, 禁句号, 省略主语/我, 口语化
-- English: ≤15 words, lowercase, fragments, no period
-- NEVER use 其实/然后/的话/非常/请/您/好的/可以的
-- One short sentence only. No explanations.`
+const defaultConversationReplyRules = `## Reply rules
+Length adapts to content:
+- Simple ack: 1 sentence (好，查一下)
+- Status answer: 2-3 sentences with key data
+- Opinion/pushback: as long as needed, stay concise
+- Never pad. If 5 chars is enough, use 5 chars.
 
-// conversationSystemPromptBase is the core prompt without reply rules.
-// Reply rules are injected from config (or defaults) at runtime.
-// Narration voice is injected only when query tools are present (%NARRATION%).
-const conversationSystemPromptBase = `You are an IM chatbot. Reply ultra-short or use tools.
+Voice:
+- 中文口语化，同事语气
+- English: direct, casual, no corporate speak
+- 禁: 请/您/好的收到/可以的/其实/然后/的话
+- Allowed: 我觉得/不太对/你确定吗/等我看看`
+
+// conversationSystemPromptBase is the personality-first brain prompt.
+// %REPLY_RULES% and %NARRATION% are replaced at runtime.
+// %URGENCY% is replaced with urgency context when detected.
+const conversationSystemPromptBase = `You are Alex, a sharp engineering colleague. You think before you speak, you have opinions, and you push back when something seems off.
+
+## Response modes (use the respond tool)
+- DIRECT: You know the answer. Say it. Be substantive, not telegraphic.
+  "CI green，但 auth test 又 flaky 了，这周第三次了" not "CI 没问题"
+- THINK: You need 5-10 seconds to look something up or reason through it. Give a quick take first, then I'll think deeper.
+  "应该是 cost 模块的问题，等我查一下具体哪个 case fail 了"
+- DELEGATE: This needs real work (coding, research, multi-step tasks). Say what you're going to do, not "收到处理中".
+  "重构 cost 模块，我先看看现在的结构再动手" not "收到，处理中"
 
 ## Decision examples
-- "你好" → reply directly
-- "重构 auth 模块" → dispatch_worker
-- "帮我看看为什么 CI 挂了" → dispatch_worker
-- "停" / "cancel that" / "算了不用了" / "停掉现在的" → stop_worker
-- "用 PostgreSQL 不要 MySQL" → dispatch_worker (inject follow-up)
-- "lint" → dispatch_worker
+- "你好" → respond(mode=direct, reply="你好")
+- "重构 auth 模块" → respond(mode=delegate, reply="重构 auth，我先看看现在的结构", task="重构 auth 模块")
+- "帮我看看为什么 CI 挂了" → respond(mode=delegate, reply="查 CI，看看是哪个 case 挂的", task="检查 CI 失败原因")
+- "停" / "cancel" / "算了" → stop_worker
+- "昨天改了什么" → respond(mode=think, reply="等我查一下 git log")
+- "Go 的 goroutine 和 thread 有什么区别" → respond(mode=direct, reply="goroutine 是用户态轻量线程...")
+- "用 PostgreSQL 不要 MySQL" → respond(mode=delegate, reply="好，换成 PostgreSQL", task="将数据库从 MySQL 迁移到 PostgreSQL")
+- "👍" → respond(mode=direct, reply="👍")
 
 ## Decision rules
-1. Stop/cancel intent (停/取消/别做了/算了/cancel/stop/nevermind) → stop_worker
-2. Action request (anything that takes time) → dispatch_worker
-3. Follow-up to running task → dispatch_worker (inject)
-4. Everything else → reply directly
+1. Stop/cancel intent → stop_worker
+2. If the answer is in your context (worker status, chat history, memory) → DIRECT
+3. If you need to fetch/compute something (git log, analysis) → THINK
+4. Action request (coding, research, multi-step) → DELEGATE
+5. Follow-up to running task → DELEGATE (inject)
+6. Everything else → DIRECT
 
-Every tool call MUST include an "ack" parameter — the reply shown to the user.
 Cross-task: include "#N" in task description to reference task N's result.
 
 %REPLY_RULES%
+%URGENCY%
 %NARRATION%
+## Voice
+- 中文口语化，像同事聊天，不像客服
+- Have opinions. "我觉得这样更好" > "有几种方案"
+- Push back when warranted. "这个方案 edge case 没覆盖" > "好的"
+- Match the user's energy. Short question → short answer. Deep question → real analysis.
+
 ## Safety
 - Never fabricate info or status.
 - Never include secrets.`
@@ -127,8 +171,8 @@ const conversationNarrationVoice = `## Narration voice (for query tool ack)
 
 // resolveConversationSystemPrompt resolves placeholders in
 // conversationSystemPromptBase. hasQueryTools controls whether narration
-// voice instructions are included.
-func (g *Gateway) resolveConversationSystemPrompt(hasQueryTools bool) string {
+// voice instructions are included. urgencyCtx is optional urgency context.
+func (g *Gateway) resolveConversationSystemPrompt(hasQueryTools bool, urgencyCtx ...string) string {
 	replyRules := g.cfg.ConversationReplyRules
 	if replyRules == "" {
 		replyRules = defaultConversationReplyRules
@@ -137,7 +181,12 @@ func (g *Gateway) resolveConversationSystemPrompt(hasQueryTools bool) string {
 	if hasQueryTools {
 		narration = conversationNarrationVoice
 	}
+	urgency := ""
+	if len(urgencyCtx) > 0 && urgencyCtx[0] != "" {
+		urgency = urgencyCtx[0]
+	}
 	prompt := strings.Replace(conversationSystemPromptBase, "%REPLY_RULES%", replyRules, 1)
+	prompt = strings.Replace(prompt, "%URGENCY%", urgency, 1)
 	return strings.Replace(prompt, "%NARRATION%", narration, 1)
 }
 
@@ -208,8 +257,9 @@ var (
 
 // naturalizeReply post-processes LLM output to match IM casual register.
 // level 0 = neutral (base rules only); level 1 = casual (base + aggressive).
+// aggressiveCasual controls whether the aggressive casual replacer runs.
 // Length is controlled via the system prompt, not code-level truncation.
-func naturalizeReply(s string, level int) string {
+func naturalizeReply(s string, level int, aggressiveCasual ...bool) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return s
@@ -219,7 +269,9 @@ func naturalizeReply(s string, level int) string {
 	// Remove surrounding quotes that LLM sometimes adds.
 	s = strings.Trim(s, "\"")
 	s = imBaseReplacer.Replace(s)
-	if level >= 1 {
+	// Aggressive casual replacer is gated — only apply when explicitly enabled.
+	aggressive := len(aggressiveCasual) > 0 && aggressiveCasual[0]
+	if level >= 1 && aggressive {
 		s = imCasualReplacer.Replace(s)
 	}
 	return s
@@ -228,7 +280,8 @@ func naturalizeReply(s string, level int) string {
 
 // sendReply naturalizes the reply and dispatches it as a single message.
 func (g *Gateway) sendReply(ctx context.Context, chatID, replyToID, reply string, level int) {
-	text := naturalizeReply(reply, level)
+	aggressive := g.cfg.AggressiveCasualRewrite != nil && *g.cfg.AggressiveCasualRewrite
+	text := naturalizeReply(reply, level, aggressive)
 	if text == "" {
 		return
 	}
@@ -309,7 +362,7 @@ func (g *Gateway) prefetchQueryContext(ctx context.Context, msg *incomingMessage
 	hasQuery := hasTask || hasUsage || hasNotice
 
 	// Always include base tools.
-	tools := []ports.ToolDefinition{g.buildDispatchWorkerTool(), stopWorkerTool}
+	tools := []ports.ToolDefinition{g.buildRespondTool(), stopWorkerTool}
 
 	if !hasQuery {
 		return prefetchResult{
@@ -387,9 +440,11 @@ collect:
 	}
 }
 
-// handleViaConversationProcess sends the user message to the gateway's LLM
-// with a single tool (dispatch_worker). The text reply goes to the user
-// immediately; a dispatch_worker call spawns a background worker.
+// thinkModeTimeout is the extended timeout for think mode's secondary LLM call.
+const thinkModeTimeout = 15 * time.Second
+
+// handleViaConversationProcess sends the user message to the conversation brain.
+// The brain chooses a response mode (direct/think/delegate) via the respond tool.
 // Always returns true — fully owns the message lifecycle when enabled.
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage) bool {
 	lang := detectLang(msg.content)
@@ -410,6 +465,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// Fetch recent chat history for conversational context (12 messages).
 	chatHistory := g.fetchConversationChatHistory(ctx, msg)
+
+	// Detect urgency/energy level from the message.
+	urgencyCtx := detectUrgency(msg.content, g.currentTime())
 
 	// Kick off processing reaction concurrently while calling the Chat LLM.
 	var processingReactionID string
@@ -434,18 +492,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		return true
 	}
 
-	// Check if any tool call is dispatch_worker.
-	hasDispatchWorker := false
-	for _, tc := range toolCalls {
-		if tc.Name == dispatchWorkerToolName {
-			hasDispatchWorker = true
-			break
-		}
-	}
-
 	logger := logging.FromContext(ctx, g.logger)
-	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d tool_calls=%d",
-		msg.messageID, hasDispatchWorker, len(reply), len(toolCalls))
 
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {
@@ -461,60 +508,222 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 	}
 
-	// ackSent tracks whether we already replied for this message.
-	ackSent := false
-	// sendToolAck sends the ack from tool args; never falls back to hardcoded text.
-	sendToolAck := func(tc ports.ToolCall) {
-		if ackSent {
-			return
-		}
-		ack, _ := tc.Arguments["ack"].(string)
-		if ack == "" {
-			ack = reply
-		}
-		if ack != "" {
-			g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
-			ackSent = true
-		}
-	}
+	// replySent tracks whether we already replied for this message.
+	replySent := false
 
 	for _, tc := range toolCalls {
 		// Record tool invocation in sliding context.
 		g.recordToolContext(msg.chatID, tc.Name, tc.Arguments)
 
 		switch tc.Name {
+		case respondToolName:
+			mode, _ := tc.Arguments["mode"].(string)
+			replyArg, _ := tc.Arguments["reply"].(string)
+			taskArg, _ := tc.Arguments["task"].(string)
+
+			// Validate mode — invalid mode falls back to direct.
+			if !respondModes[mode] {
+				logger.Warn("conversation: invalid mode=%q, falling back to direct for msg=%s", mode, msg.messageID)
+				mode = "direct"
+			}
+
+			// Log brain decision for mode analytics.
+			g.logBrainDecision(msg, mode, urgencyCtx)
+
+			logger.Info("conversation: brain mode=%s msg=%s reply_len=%d", mode, msg.messageID, len(replyArg))
+
+			switch mode {
+			case "direct", "stream":
+				// Send the reply immediately. Stream mode falls back to direct.
+				if replyArg != "" && !replySent {
+					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
+					replySent = true
+				}
+
+			case "think":
+				// Phase 1: send quick take immediately.
+				if replyArg != "" && !replySent {
+					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
+					replySent = true
+				}
+				// Phase 2: spawn goroutine for secondary LLM call.
+				g.spawnThinkMode(ctx, msg, replyArg, pf, allWorkers, chatHistory, urgencyCtx, level)
+
+			case "delegate":
+				// Send informative ack, then spawn or inject worker.
+				if replyArg != "" && !replySent {
+					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), replyArg, level)
+					replySent = true
+				}
+				if taskArg == "" {
+					taskArg = msg.content
+				}
+				taskID, injected := g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
+				if injected {
+					logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
+				} else {
+					logger.Info("conversation: SPAWNED worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
+				}
+			}
+
+		case stopWorkerToolName:
+			taskIDArg, _ := tc.Arguments["task_id"].(string)
+			g.executeStopWorkerExtended(ctx, slotMap, taskIDArg)
+			ack, _ := tc.Arguments["ack"].(string)
+			if ack == "" {
+				ack = reply
+			}
+			if ack != "" && !replySent {
+				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+				replySent = true
+			}
+			// Cancel any active think mode for this chat.
+			g.cancelThinkMode(msg.chatID)
+
+		case queryTasksToolName:
+			result := g.executeQueryTasks(ctx, msg, tc.Arguments)
+			logger.Info("conversation: query_tasks result_len=%d", len(result))
+			ack, _ := tc.Arguments["ack"].(string)
+			if ack != "" && !replySent {
+				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+				replySent = true
+			}
+		case queryUsageToolName:
+			result := g.executeQueryUsage(ctx, msg, tc.Arguments)
+			logger.Info("conversation: query_usage result_len=%d", len(result))
+			ack, _ := tc.Arguments["ack"].(string)
+			if ack != "" && !replySent {
+				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+				replySent = true
+			}
+		case manageNoticeToolName:
+			result := g.executeManageNotice(msg, tc.Arguments)
+			logger.Info("conversation: manage_notice result=%s", utils.Truncate(result, 60, "..."))
+			ack, _ := tc.Arguments["ack"].(string)
+			if ack != "" && !replySent {
+				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+				replySent = true
+			}
+
+		// Legacy: handle dispatch_worker tool calls from cached prompts.
 		case dispatchWorkerToolName:
 			taskArg, _ := tc.Arguments["task"].(string)
 			if taskArg == "" {
 				taskArg = msg.content
 			}
-			taskID, injected := g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
-			if injected {
-				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
-			} else {
-				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
+			ack, _ := tc.Arguments["ack"].(string)
+			if ack == "" {
+				ack = reply // fallback to text reply as ack
 			}
-			sendToolAck(tc)
-		case stopWorkerToolName:
-			taskIDArg, _ := tc.Arguments["task_id"].(string)
-			g.executeStopWorkerExtended(ctx, slotMap, taskIDArg)
-			sendToolAck(tc)
-		case queryTasksToolName:
-			result := g.executeQueryTasks(ctx, msg, tc.Arguments)
-			logger.Info("conversation: query_tasks result_len=%d", len(result))
-			sendToolAck(tc)
-		case queryUsageToolName:
-			result := g.executeQueryUsage(ctx, msg, tc.Arguments)
-			logger.Info("conversation: query_usage result_len=%d", len(result))
-			sendToolAck(tc)
-		case manageNoticeToolName:
-			result := g.executeManageNotice(msg, tc.Arguments)
-			logger.Info("conversation: manage_notice result=%s", utils.Truncate(result, 60, "..."))
-			sendToolAck(tc)
+			if ack != "" && !replySent {
+				g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+				replySent = true
+			}
+			g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
 		}
 	}
 
 	return true
+}
+
+// spawnThinkMode launches a goroutine for think mode's secondary LLM call.
+// Sends an enriched reply as a follow-up message, prefixed with a reference
+// to the original question for context.
+func (g *Gateway) spawnThinkMode(ctx context.Context, msg *incomingMessage, quickTake string, pf prefetchResult, workers workerSnapshotList, chatHistory, urgencyCtx string, level int) {
+	thinkCtx, thinkCancel := context.WithTimeout(context.WithoutCancel(ctx), thinkModeTimeout)
+
+	// Store cancel func so stop_worker can cancel think mode.
+	g.setThinkCancel(msg.chatID, thinkCancel)
+
+	go func() {
+		defer thinkCancel()
+		defer g.clearThinkCancel(msg.chatID)
+
+		// Build enriched prompt with the quick take as context.
+		systemPrompt := g.buildConversationSystemPrompt(ctx, msg.senderID, pf.hasQueryTools, urgencyCtx)
+		enrichedPrompt := systemPrompt + "\n\nYou already gave a quick take: \"" + quickTake + "\"\nNow provide a more detailed, substantive answer. Include specific data, analysis, or reasoning."
+
+		var sb strings.Builder
+		sb.WriteString("Worker status: ")
+		sb.WriteString(workers.StatusSummary())
+		if chatHistory != "" {
+			sb.WriteString("\n\nRecent chat:\n")
+			sb.WriteString(chatHistory)
+		}
+		if pf.extraContext != "" {
+			sb.WriteString("\n\n")
+			sb.WriteString(pf.extraContext)
+		}
+		sb.WriteString("\n\nUser message: ")
+		sb.WriteString(strings.TrimSpace(msg.content))
+
+		client, _, err := llmclient.GetClientFromProfile(g.llmFactory, g.llmProfile, nil, false)
+		if err != nil {
+			g.logger.Warn("think mode: client error: %v", err)
+			g.sendThinkFallback(ctx, msg, level)
+			return
+		}
+
+		resp, err := client.Complete(thinkCtx, ports.CompletionRequest{
+			Messages: []ports.Message{
+				{Role: "system", Content: enrichedPrompt},
+				{Role: "user", Content: sb.String()},
+			},
+			Temperature: conversationTemp,
+			MaxTokens:   2048,
+		})
+		if err != nil {
+			g.logger.Warn("think mode: secondary LLM failed: %v", err)
+			g.sendThinkFallback(ctx, msg, level)
+			return
+		}
+
+		enriched := strings.TrimSpace(resp.Content)
+		if enriched == "" {
+			g.sendThinkFallback(ctx, msg, level)
+			return
+		}
+
+		// Prepend quote reference to link back to original question.
+		msgContent := strings.TrimSpace(msg.content)
+		if len([]rune(msgContent)) > 30 {
+			msgContent = string([]rune(msgContent)[:30]) + "..."
+		}
+		enriched = "关于「" + msgContent + "」：" + enriched
+
+		g.sendReply(ctx, msg.chatID, "", enriched, level)
+	}()
+}
+
+// sendThinkFallback sends a brief error follow-up when think mode's secondary call fails.
+func (g *Gateway) sendThinkFallback(ctx context.Context, msg *incomingMessage, level int) {
+	lang := detectLang(msg.content)
+	var fallback string
+	if lang == "en" {
+		fallback = "couldn't find more details, try asking again"
+	} else {
+		fallback = "没查到更多细节，你可以再问一次"
+	}
+	g.sendReply(ctx, msg.chatID, "", fallback, level)
+}
+
+// setThinkCancel stores a think mode cancel function for a chat.
+func (g *Gateway) setThinkCancel(chatID string, cancel context.CancelFunc) {
+	g.thinkCancels.Store(chatID, cancel)
+}
+
+// clearThinkCancel removes the think cancel for a chat.
+func (g *Gateway) clearThinkCancel(chatID string) {
+	g.thinkCancels.Delete(chatID)
+}
+
+// cancelThinkMode cancels any active think mode secondary call for a chat.
+func (g *Gateway) cancelThinkMode(chatID string) {
+	if v, ok := g.thinkCancels.LoadAndDelete(chatID); ok {
+		if cancel, ok := v.(context.CancelFunc); ok {
+			cancel()
+		}
+	}
 }
 
 // conversationLLMOpts configures the conversation LLM call.
@@ -613,16 +822,17 @@ func (g *Gateway) conversationLLMWithList(ctx context.Context, senderID, userMsg
 		userMsg:     userMsg,
 		workers:     workers,
 		chatHistory: chatHistory,
-		tools:       []ports.ToolDefinition{g.buildDispatchWorkerTool(), stopWorkerTool},
+		tools:       []ports.ToolDefinition{g.buildRespondTool(), stopWorkerTool},
 		maxTokens:   conversationMaxTok,
 	})
 }
 
-// buildConversationSystemPrompt composes the conversation router's system
+// buildConversationSystemPrompt composes the conversation brain's system
 // prompt by prepending memory context (SOUL.md, USER.md, long-term) and
 // appending date/timezone when available. Uses a 60-second TTL cache per senderID.
 // hasQueryTools controls whether narration voice instructions are included.
-func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string, hasQueryTools bool) string {
+// urgencyCtx is optional urgency context injected into the prompt.
+func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string, hasQueryTools bool, urgencyCtx ...string) string {
 	var sections []string
 
 	if g.conversationPromptLoader != nil {
@@ -632,7 +842,7 @@ func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID st
 		}
 	}
 
-	sections = append(sections, strings.TrimSpace(g.resolveConversationSystemPrompt(hasQueryTools)))
+	sections = append(sections, strings.TrimSpace(g.resolveConversationSystemPrompt(hasQueryTools, urgencyCtx...)))
 
 	now := g.currentTime()
 	sections = append(sections, fmt.Sprintf("Current date: %s (%s)", now.Format("2006-01-02"), now.Location().String()))
@@ -669,6 +879,54 @@ func (g *Gateway) evictExpiredPromptCache() {
 		}
 		return true
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Urgency detection — heuristic-based context injection
+// ---------------------------------------------------------------------------
+
+// urgencyFrustrationMarkers are message patterns indicating user frustration.
+var urgencyFrustrationMarkers = []string{
+	"又", "怎么又", "还是", "又挂了", "又出问题", "又失败",
+	"wtf", "again", "still broken", "not working",
+	"!", "！", "??", "？？",
+}
+
+// detectUrgency returns an urgency context string to inject into the brain prompt.
+// Returns empty string for neutral energy (no injection needed).
+func detectUrgency(content string, now time.Time) string {
+	lower := strings.ToLower(content)
+
+	// Check frustration markers.
+	frustrated := false
+	for _, marker := range urgencyFrustrationMarkers {
+		if strings.Contains(lower, marker) {
+			frustrated = true
+			break
+		}
+	}
+
+	// Check late night (22:00 - 06:00).
+	hour := now.Hour()
+	lateNight := hour >= 22 || hour < 6
+
+	if frustrated {
+		return "[context: user seems frustrated — respond with empathy + immediate action]"
+	}
+	if lateNight {
+		return "[context: late night — keep it brief, prioritize action over explanation]"
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Mode analytics — structured brain decision logging
+// ---------------------------------------------------------------------------
+
+// logBrainDecision logs a structured event for each brain mode decision.
+func (g *Gateway) logBrainDecision(msg *incomingMessage, mode, urgencyCtx string) {
+	g.logger.Info("brain_decision: mode=%s chat=%s sender=%s msg_len=%d lang=%s urgency=%q",
+		mode, msg.chatID, msg.senderID, len([]rune(msg.content)), detectLang(msg.content), urgencyCtx)
 }
 
 // getOrCreateSlotMap returns (or lazily creates) the chatSlotMap for a chat.

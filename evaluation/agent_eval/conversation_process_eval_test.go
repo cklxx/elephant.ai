@@ -29,6 +29,11 @@ func TestConversationProcessRouting_Offline(t *testing.T) {
 		"dispatch":        true,
 		"dispatch_inject": true,
 		"stop":            true,
+		// Three-mode brain categories:
+		"direct":          true,
+		"think":           true,
+		"delegate":        true,
+		"delegate_inject": true,
 	}
 
 	for _, sc := range ds.Scenarios {
@@ -55,6 +60,10 @@ func TestConversationProcessRouting_Offline(t *testing.T) {
 		case "dispatch", "dispatch_inject":
 			if len(sc.ExpectedTools) != 1 || sc.ExpectedTools[0] != "dispatch_worker" {
 				t.Errorf("scenario %s: dispatch should expect [dispatch_worker], got %v", sc.ID, sc.ExpectedTools)
+			}
+		case "direct", "think", "delegate", "delegate_inject":
+			if len(sc.ExpectedTools) != 1 || sc.ExpectedTools[0] != "respond" {
+				t.Errorf("scenario %s: brain mode should expect [respond], got %v", sc.ID, sc.ExpectedTools)
 			}
 		case "stop":
 			if len(sc.ExpectedTools) != 1 || sc.ExpectedTools[0] != "stop_worker" {

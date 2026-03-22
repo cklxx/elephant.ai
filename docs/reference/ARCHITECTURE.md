@@ -139,21 +139,26 @@ implementation details and must not appear in user-facing docs or skills.
 
 ---
 
-## Lark Gateway — Chat + Worker Model
+## Lark Gateway — Three-Mode Conversation Brain
 
-When `ConversationProcessEnabled=true`, the Lark gateway splits message handling into two concurrent goroutine roles:
+When `ConversationProcessEnabled=true`, the Lark gateway uses a personality-first conversation brain that chooses response modes:
 
 ```
-User ──▶ Chat (lightweight LLM, ~1-3s)
+User ──▶ Brain (personality-first LLM, 8s)
               │
-              ├── dispatch_worker ──▶ Worker (ReAct Agent, background, minutes)
-              ├── stop_worker     ──▶ cancel Worker
-              └── direct reply    ──▶ instant text response
+              ├── respond(mode=direct)   ──▶ immediate reply (substantive, not telegraphic)
+              ├── respond(mode=think)    ──▶ quick take + secondary LLM call (15s) + enriched reply
+              ├── respond(mode=delegate) ──▶ informative ack + Worker (ReAct Agent, background)
+              ├── respond(mode=stream)   ──▶ (reserved, falls back to direct)
+              └── stop_worker            ──▶ cancel Worker + cancel active think mode
+
+Signal Graph ──▶ ConversationBrainHandler ──▶ Brain LLM ──▶ proactive message
 ```
 
-- **Chat** (`handleViaConversationProcess`): fast LLM (8s timeout, 300 tokens) with `dispatch_worker` and `stop_worker` tools. Reads worker status via `workerSnapshot` (phase, task desc, elapsed, recent tool progress). Includes last 5 chat rounds for context.
-- **Worker** (`spawnWorker` → `launchWorkerGoroutine` → `runTask`): full ReAct Agent with tool execution. Receives injected messages via `inputCh`. Tool events recorded to `sessionSlot.recentProgress` ring buffer via `slotProgressRecorder`.
-- **Slot state machine**: `idle → running → idle` (or `→ awaitingInput → running`). Chat can stop Worker via `intentionalCancelToken` + `cancel()`.
+- **Brain** (`handleViaConversationProcess`): personality-first LLM (8s timeout, 10240 tokens) with `respond` and `stop_worker` tools. Includes SOUL.md/memory context, worker status, chat history (5 rounds), urgency detection, and sliding decision context. Chooses response mode per message.
+- **Think mode**: sends quick take immediately, spawns goroutine for secondary LLM call (15s timeout, 2048 tokens). Enriched reply prefixed with `关于「question」：` for context linking. Cancellable via `stop_worker`.
+- **Worker** (`spawnWorker` → `launchWorkerGoroutine` → `runTask`): full ReAct Agent with tool execution. Worker results narrated through brain personality via `narrateWithLLM`.
+- **Slot state machine**: `idle → running → idle` (or `→ awaitingInput → running`). Brain can stop Worker via `intentionalCancelToken` + `cancel()`.
 
 See: [`internal/delivery/channels/lark/README.md`](../../internal/delivery/channels/lark/README.md) for full details.
 

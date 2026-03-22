@@ -55,14 +55,14 @@ func (l *backgroundProgressListener) doSendTeamCompletionSummary(tasks []complet
 }
 
 // notifyTaskCompletionViaConversationLLM uses the conversation LLM to narrate
-// completed tasks with the unified personality.
+// completed tasks with the brain's unified personality.
 func (l *backgroundProgressListener) notifyTaskCompletionViaConversationLLM(tasks []completedTaskRecord) {
 	if l.g == nil || l.g.llmFactory == nil {
 		l.doSendTeamCompletionSummaryFallback(tasks)
 		return
 	}
 
-	// Build synthetic task data.
+	// Build task data for narration.
 	var taskData strings.Builder
 	taskData.WriteString(fmt.Sprintf("Narrate these %d completed tasks to the user:\n\n", len(tasks)))
 	for i, t := range tasks {
@@ -75,11 +75,14 @@ func (l *backgroundProgressListener) notifyTaskCompletionViaConversationLLM(task
 		taskData.WriteString("\n")
 	}
 
-	systemPrompt := l.g.resolveConversationSystemPrompt(false)
+	// Use the brain's personality prompt for narration so all messages
+	// have the same voice, whether reactive or completion notifications.
+	narrationPrompt := l.g.buildConversationSystemPrompt(l.ctx, "", false) +
+		"\n\nNarrate these completed task results conversationally. Be concise, lead with conclusion, bold key data."
 
-	summary, err := l.g.narrateWithLLM(l.ctx, systemPrompt, taskData.String(), narrateOpts{
+	summary, err := l.g.narrateWithLLM(l.ctx, narrationPrompt, taskData.String(), narrateOpts{
 		timeout:   10 * time.Second,
-		maxTokens: 400,
+		maxTokens: 500,
 	})
 	if err != nil || summary == "" {
 		l.logger.Warn("Conversation LLM completion narration failed, using fallback: %v", err)

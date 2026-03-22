@@ -85,7 +85,26 @@ func (g *Gateway) recordToolContext(chatID, toolName string, args map[string]any
 // buildToolContextSummary produces a deterministic one-line summary from tool args.
 func buildToolContextSummary(toolName string, args map[string]any) string {
 	switch toolName {
+	case respondToolName:
+		mode, _ := args["mode"].(string)
+		reply, _ := args["reply"].(string)
+		if len([]rune(reply)) > 60 {
+			reply = string([]rune(reply)[:60]) + "..."
+		}
+		switch mode {
+		case "delegate":
+			task, _ := args["task"].(string)
+			if len([]rune(task)) > 60 {
+				task = string([]rune(task)[:60]) + "..."
+			}
+			return fmt.Sprintf("[delegate] %s → worker: %s", reply, task)
+		case "think":
+			return fmt.Sprintf("[think] %s", reply)
+		default:
+			return fmt.Sprintf("[%s] %s", mode, reply)
+		}
 	case dispatchWorkerToolName:
+		// Legacy tool — keep for backward compatibility.
 		task, _ := args["task"].(string)
 		if len([]rune(task)) > 60 {
 			task = string([]rune(task)[:60]) + "..."

@@ -1,117 +1,176 @@
-version: "1"
+version: "2"
 name: "conversation-process-routing"
-description: "Conversation process decision routing: reply-only vs dispatch_worker vs stop_worker vs query tools. Tests the chat thread LLM's ability to pick the right action."
+description: "Three-mode brain routing: respond(mode=direct/think/delegate) vs stop_worker vs query tools. Tests the conversation brain's ability to pick the right response mode."
 scenarios:
   # -----------------------------------------------------------------------
-  # Reply-only: greetings, chitchat, simple Q&A
+  # direct mode: greetings, chitchat, simple Q&A, acknowledgements
   # -----------------------------------------------------------------------
-  - id: "reply-greeting-zh"
-    category: "reply_only"
+  - id: "direct-greeting-zh"
+    category: "direct"
     intent: "你好"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-greeting-en"
-    category: "reply_only"
+  - id: "direct-greeting-en"
+    category: "direct"
     intent: "hey"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-thanks-zh"
-    category: "reply_only"
+  - id: "direct-thanks-zh"
+    category: "direct"
     intent: "谢谢"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-chitchat-zh"
-    category: "reply_only"
+  - id: "direct-chitchat-zh"
+    category: "direct"
     intent: "今天天气怎么样"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-simple-qa"
-    category: "reply_only"
+  - id: "direct-simple-qa"
+    category: "direct"
     intent: "Go 的 goroutine 和 thread 有什么区别"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-acknowledgement"
-    category: "reply_only"
+  - id: "direct-acknowledgement"
+    category: "direct"
     intent: "好的知道了"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
-  - id: "reply-emoji-only"
-    category: "reply_only"
+  - id: "direct-emoji-only"
+    category: "direct"
     intent: "👍"
-    expected_tools: []
+    expected_tools: ["respond"]
+    expected_mode: "direct"
+
+  - id: "direct-question-about-task"
+    category: "direct"
+    intent: "刚才那个任务是干什么的"
+    expected_tools: ["respond"]
+    expected_mode: "direct"
 
   # -----------------------------------------------------------------------
-  # dispatch_worker: action requests
+  # think mode: questions that need reasoning or lookup
   # -----------------------------------------------------------------------
-  - id: "dispatch-code-refactor"
-    category: "dispatch"
+  - id: "think-recent-changes"
+    category: "think"
+    intent: "昨天改了什么"
+    expected_tools: ["respond"]
+    expected_mode: "think"
+
+  - id: "think-cost-trend"
+    category: "think"
+    intent: "最近 cost 涨了多少，什么原因"
+    expected_tools: ["respond"]
+    expected_mode: "think"
+
+  - id: "think-architecture-question"
+    category: "think"
+    intent: "conversation process 的架构是怎么设计的"
+    expected_tools: ["respond"]
+    expected_mode: "think"
+
+  - id: "think-comparison"
+    category: "think"
+    intent: "对比一下 Redis 和 Memcached 哪个更适合我们的场景"
+    expected_tools: ["respond"]
+    expected_mode: "think"
+
+  - id: "think-debug-analysis"
+    category: "think"
+    intent: "最近 flaky test 有什么规律吗"
+    expected_tools: ["respond"]
+    expected_mode: "think"
+
+  # -----------------------------------------------------------------------
+  # delegate mode: action requests needing background work
+  # -----------------------------------------------------------------------
+  - id: "delegate-code-refactor"
+    category: "delegate"
     intent: "重构一下 auth 模块"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-research-paper"
-    category: "dispatch"
+  - id: "delegate-research-paper"
+    category: "delegate"
     intent: "搜索最新的 agent 记忆论文"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-write-doc"
-    category: "dispatch"
+  - id: "delegate-write-doc"
+    category: "delegate"
     intent: "帮我写一份技术方案"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-code-review"
-    category: "dispatch"
+  - id: "delegate-code-review"
+    category: "delegate"
     intent: "review 一下最近的 PR"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-debug"
-    category: "dispatch"
+  - id: "delegate-debug"
+    category: "delegate"
     intent: "帮我看看为什么 CI 挂了"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-analysis-en"
-    category: "dispatch"
+  - id: "delegate-analysis-en"
+    category: "delegate"
     intent: "analyze the performance bottleneck in the API gateway"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-build-feature"
-    category: "dispatch"
+  - id: "delegate-build-feature"
+    category: "delegate"
     intent: "实现一个用户通知的功能"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-implicit-action"
-    category: "dispatch"
+  - id: "delegate-implicit-action"
+    category: "delegate"
     intent: "把 auth 模块改成用 context 传递 token"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-with-skill-match"
-    category: "dispatch"
-    intent: "跑个 QA 测试看看有没有 bug"
-    expected_tools: ["dispatch_worker"]
+  - id: "delegate-short-command"
+    category: "delegate"
+    intent: "lint"
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
-  - id: "dispatch-data-analysis"
-    category: "dispatch"
-    intent: "分析一下这周的用户留存数据"
-    expected_tools: ["dispatch_worker"]
+  - id: "delegate-url-request"
+    category: "delegate"
+    intent: "打开 https://example.com 看看能不能访问"
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
 
   # -----------------------------------------------------------------------
-  # dispatch_worker (inject): follow-up to running task
+  # delegate mode (inject): follow-up to running task
   # -----------------------------------------------------------------------
-  - id: "dispatch-inject-followup"
-    category: "dispatch_inject"
+  - id: "delegate-inject-followup"
+    category: "delegate_inject"
     intent: "用 PostgreSQL 不要用 MySQL"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
     worker_status: "#1 running (重构 auth 模块, 45s)"
 
-  - id: "dispatch-inject-correction"
-    category: "dispatch_inject"
+  - id: "delegate-inject-correction"
+    category: "delegate_inject"
     intent: "对了，数据库用 PostgreSQL 不要用 SQLite"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
     worker_status: "#1 running (搭建后端服务, 30s)"
 
-  - id: "dispatch-cross-task-ref"
-    category: "dispatch_inject"
+  - id: "delegate-cross-task-ref"
+    category: "delegate_inject"
     intent: "用 #1 的结果继续做"
-    expected_tools: ["dispatch_worker"]
+    expected_tools: ["respond"]
+    expected_mode: "delegate"
     worker_status: "#1 completed (分析数据)"
 
   # -----------------------------------------------------------------------
@@ -149,25 +208,7 @@ scenarios:
     intent: "算了不用了"
     expected_tools: ["stop_worker"]
 
-  # -----------------------------------------------------------------------
-  # Edge cases: ambiguous intent
-  # -----------------------------------------------------------------------
-  - id: "edge-question-about-task"
-    category: "reply_only"
-    intent: "刚才那个任务是干什么的"
-    expected_tools: []
-
-  - id: "edge-short-command"
-    category: "dispatch"
-    intent: "lint"
-    expected_tools: ["dispatch_worker"]
-
-  - id: "edge-url-request"
-    category: "dispatch"
-    intent: "打开 https://example.com 看看能不能访问"
-    expected_tools: ["dispatch_worker"]
-
-  - id: "edge-mixed-stop-and-new"
+  - id: "stop-mixed-stop-and-new"
     category: "stop"
     intent: "停掉现在的，不做了"
     expected_tools: ["stop_worker"]

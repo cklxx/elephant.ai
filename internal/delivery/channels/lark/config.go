@@ -97,6 +97,11 @@ type Config struct {
 	// in the conversation router system prompt. When empty, sensible defaults
 	// are used (Chinese ≤12 chars, English ≤15 chars, casual register, etc.).
 	ConversationReplyRules string `yaml:"conversation_reply_rules"`
+	// AggressiveCasualRewrite enables the aggressive casual text replacements
+	// (好的→好, 是的→对, etc.) in naturalizeReply. Default: false.
+	// When the brain prompt produces the right register directly, these
+	// substitutions can flatten personality. Keep disabled unless needed.
+	AggressiveCasualRewrite *bool `yaml:"aggressive_casual_rewrite"`
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

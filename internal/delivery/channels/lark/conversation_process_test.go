@@ -267,14 +267,14 @@ func TestConversationLLMWithList_IncludesTools(t *testing.T) {
 		t.Fatal("expected at least one LLM request")
 	}
 	if len(reqs[0].Tools) != 2 {
-		t.Fatalf("expected 2 tools (dispatch_worker, stop_worker), got %d", len(reqs[0].Tools))
+		t.Fatalf("expected 2 tools (respond, stop_worker), got %d", len(reqs[0].Tools))
 	}
 	names := make(map[string]bool)
 	for _, tool := range reqs[0].Tools {
 		names[tool.Name] = true
 	}
-	if !names["dispatch_worker"] || !names["stop_worker"] {
-		t.Fatalf("expected dispatch_worker and stop_worker tools, got %v", reqs[0].Tools)
+	if !names["respond"] || !names["stop_worker"] {
+		t.Fatalf("expected respond and stop_worker tools, got %v", reqs[0].Tools)
 	}
 }
 
@@ -623,13 +623,13 @@ func TestHandleViaConversationProcess_UsesFormattedPipeline(t *testing.T) {
 func TestNaturalizeReply_StripsTrailingPeriod(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"已完成。", "已完成"},
-		{"好的。", "好"},       // base trailing period, then casual "好的"→"好"
+		{"好的。", "好的"},     // trailing period removed, but aggressive casual off → "好的" stays
 		{"没问题", "没问题"},    // no period, no change
 		{"", ""},              // empty passthrough
 		{"Done.", "Done."},    // ASCII period untouched (only Chinese period removed)
 	}
 	for _, tc := range cases {
-		got := naturalizeReply(tc.in, 1)
+		got := naturalizeReply(tc.in, 1) // aggressive casual disabled by default
 		if got != tc.want {
 			t.Errorf("naturalizeReply(%q, 1) = %q, want %q", tc.in, got, tc.want)
 		}
@@ -656,12 +656,22 @@ func TestNaturalizeReply_BaseTierSubstitutions(t *testing.T) {
 }
 
 func TestNaturalizeReply_CasualTierApplied(t *testing.T) {
-	// level=1 applies casual rules on top of base rules.
-	if got := naturalizeReply("好的", 1); got != "好" {
-		t.Errorf("casual: naturalizeReply(\"好的\", 1) = %q, want \"好\"", got)
+	// level=1 + aggressiveCasual=true applies casual rules on top of base rules.
+	if got := naturalizeReply("好的", 1, true); got != "好" {
+		t.Errorf("casual: naturalizeReply(\"好的\", 1, true) = %q, want \"好\"", got)
 	}
-	if got := naturalizeReply("知道了", 1); got != "知道" {
-		t.Errorf("casual: naturalizeReply(\"知道了\", 1) = %q, want \"知道\"", got)
+	if got := naturalizeReply("知道了", 1, true); got != "知道" {
+		t.Errorf("casual: naturalizeReply(\"知道了\", 1, true) = %q, want \"知道\"", got)
+	}
+}
+
+func TestNaturalizeReply_CasualTierNotAppliedByDefault(t *testing.T) {
+	// level=1 without aggressiveCasual flag should NOT apply casual rules.
+	if got := naturalizeReply("好的", 1); got != "好的" {
+		t.Errorf("default: naturalizeReply(\"好的\", 1) = %q, want \"好的\"", got)
+	}
+	if got := naturalizeReply("知道了", 1); got != "知道了" {
+		t.Errorf("default: naturalizeReply(\"知道了\", 1) = %q, want \"知道了\"", got)
 	}
 }
 
