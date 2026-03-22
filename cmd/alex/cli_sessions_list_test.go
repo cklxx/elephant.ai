@@ -37,7 +37,7 @@ func newTestCLI(t *testing.T, sessions []*agentstorage.Session) *CLI {
 
 	coord := coordinator.NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
 	return &CLI{container: &Container{Container: &di.Container{
-		SessionStore:     store,
+		StorageResources: di.StorageResources{SessionStore: store},
 		AgentCoordinator: coord,
 	}}}
 }

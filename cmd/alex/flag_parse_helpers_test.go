@@ -84,7 +84,7 @@ func TestPullSessionSnapshotsWithWriterFlagParseErrorIncludesBufferedUsage(t *te
 	t.Parallel()
 
 	store := sessionstate.NewInMemoryStore()
-	cli := &CLI{container: &Container{Container: &di.Container{StateStore: store}}}
+	cli := &CLI{container: &Container{Container: &di.Container{StorageResources: di.StorageResources{StateStore: store}}}}
 	var out bytes.Buffer
 
 	err := cli.pullSessionSnapshotsWithWriter(context.Background(), []string{"sess-1", "--unknown"}, &out)

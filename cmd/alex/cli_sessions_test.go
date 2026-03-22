@@ -26,7 +26,7 @@ func TestPullSessionSnapshotByTurn(t *testing.T) {
 		t.Fatalf("seed snapshot: %v", err)
 	}
 
-	cli := &CLI{container: &Container{Container: &di.Container{StateStore: store}}}
+	cli := &CLI{container: &Container{Container: &di.Container{StorageResources: di.StorageResources{StateStore: store}}}}
 	var buf bytes.Buffer
 	tempDir := t.TempDir()
 	outputPath := filepath.Join(tempDir, "turn.json")
@@ -59,7 +59,7 @@ func TestPullSessionSnapshotList(t *testing.T) {
 	if err := store.SaveSnapshot(context.Background(), snapshot); err != nil {
 		t.Fatalf("seed snapshot: %v", err)
 	}
-	cli := &CLI{container: &Container{Container: &di.Container{StateStore: store}}}
+	cli := &CLI{container: &Container{Container: &di.Container{StorageResources: di.StorageResources{StateStore: store}}}}
 	var buf bytes.Buffer
 	if err := cli.pullSessionSnapshotsWithWriter(context.Background(), []string{"sess-list"}, &buf); err != nil {
 		t.Fatalf("list snapshots: %v", err)
@@ -80,7 +80,7 @@ func TestPullSessionSnapshotByLLMTurn(t *testing.T) {
 			t.Fatalf("seed snapshot: %v", err)
 		}
 	}
-	cli := &CLI{container: &Container{Container: &di.Container{StateStore: store}}}
+	cli := &CLI{container: &Container{Container: &di.Container{StorageResources: di.StorageResources{StateStore: store}}}}
 	var buf bytes.Buffer
 	if err := cli.pullSessionSnapshotsWithWriter(context.Background(), []string{"sess-llm", "--llm-turn", "5"}, &buf); err != nil {
 		t.Fatalf("pull by llm turn: %v", err)
