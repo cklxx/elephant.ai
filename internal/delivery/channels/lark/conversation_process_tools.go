@@ -32,8 +32,12 @@ func buildQueryTasksTool() ports.ToolDefinition {
 					Type:        "string",
 					Description: "Task ID to query (required when scope='status').",
 				},
+				"ack": {
+					Type:        "string",
+					Description: "Reply to show the user summarising the task status.",
+				},
 			},
-			Required: []string{"scope"},
+			Required: []string{"scope", "ack"},
 		},
 	}
 }
@@ -51,7 +55,12 @@ func buildQueryUsageTool() ports.ToolDefinition {
 					Description: "Time period: 'today', 'week', or 'all'. Default 'today'.",
 					Enum:        []any{"today", "week", "all"},
 				},
+				"ack": {
+					Type:        "string",
+					Description: "Reply to show the user summarising usage data.",
+				},
 			},
+			Required: []string{"ack"},
 		},
 	}
 }
@@ -69,8 +78,12 @@ func buildManageNoticeTool() ports.ToolDefinition {
 					Description: "Action to perform: 'bind', 'status', or 'clear'.",
 					Enum:        []any{"bind", "status", "clear"},
 				},
+				"ack": {
+					Type:        "string",
+					Description: "Reply to show the user confirming the notice action.",
+				},
 			},
-			Required: []string{"action"},
+			Required: []string{"action", "ack"},
 		},
 	}
 }

@@ -50,8 +50,12 @@ func (g *Gateway) buildDispatchWorkerTool() ports.ToolDefinition {
 					Type:        "string",
 					Description: "Task description preserving the user's original intent. When a skill matches, include 'skill:<name>' in the task.",
 				},
+				"ack": {
+					Type:        "string",
+					Description: "Short acknowledgement reply to show the user (4-8 chars, e.g. '收到' / 'on it').",
+				},
 			},
-			Required: []string{"task"},
+			Required: []string{"task", "ack"},
 		},
 	}
 }
@@ -66,7 +70,12 @@ var stopWorkerTool = ports.ToolDefinition{
 				Type:        "string",
 				Description: "Task ID to stop (e.g. '#1'). Empty string stops all running tasks.",
 			},
+			"ack": {
+				Type:        "string",
+				Description: "Short acknowledgement reply to show the user (e.g. '已停' / 'stopped').",
+			},
 		},
+		Required: []string{"ack"},
 	},
 }
 
@@ -91,7 +100,9 @@ Pick the right action:
 - query_usage: user asks about usage, cost, stats, model info.
 - manage_notice: user wants to bind/check/clear notification group.
 
-When dispatching, also reply with a short ack (4-8 chars).
+Every tool call MUST include an "ack" parameter — this is the reply shown to the user.
+- dispatch_worker / stop_worker: short ack (4-8 chars).
+- query_tasks / query_usage / manage_notice: narrated summary as ack.
 When a skill matches, include its name in the dispatch task.
 
 %REPLY_RULES%
@@ -442,9 +453,26 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		return true
 	}
 
-	// When no worker is dispatched, send the reply as fragmented IM messages.
-	if reply != "" && !hasDispatchWorker {
+	// When there are no tool calls, send the LLM text reply directly.
+	if len(toolCalls) == 0 && reply != "" {
 		g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+	}
+
+	// ackSent tracks whether we already replied for this message.
+	ackSent := false
+	// sendToolAck sends the ack from tool args; never falls back to hardcoded text.
+	sendToolAck := func(tc ports.ToolCall) {
+		if ackSent {
+			return
+		}
+		ack, _ := tc.Arguments["ack"].(string)
+		if ack == "" {
+			ack = reply
+		}
+		if ack != "" {
+			g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+			ackSent = true
+		}
 	}
 
 	for _, tc := range toolCalls {
@@ -463,24 +491,23 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 			}
-			ack := reply
-			if ack == "" {
-				ack = fallbackAck(lang)
-			}
-			g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
+			sendToolAck(tc)
 		case stopWorkerToolName:
 			taskIDArg, _ := tc.Arguments["task_id"].(string)
 			g.executeStopWorkerExtended(ctx, slotMap, taskIDArg)
+			sendToolAck(tc)
 		case queryTasksToolName:
 			result := g.executeQueryTasks(ctx, msg, tc.Arguments)
-			// Result is already in the LLM response via pre-fetch; log for debugging.
 			logger.Info("conversation: query_tasks result_len=%d", len(result))
+			sendToolAck(tc)
 		case queryUsageToolName:
 			result := g.executeQueryUsage(ctx, msg, tc.Arguments)
 			logger.Info("conversation: query_usage result_len=%d", len(result))
+			sendToolAck(tc)
 		case manageNoticeToolName:
 			result := g.executeManageNotice(msg, tc.Arguments)
 			logger.Info("conversation: manage_notice result=%s", utils.Truncate(result, 60, "..."))
+			sendToolAck(tc)
 		}
 	}
 
