@@ -75,7 +75,7 @@ func (l *backgroundProgressListener) notifyTaskCompletionViaConversationLLM(task
 		taskData.WriteString("\n")
 	}
 
-	systemPrompt := l.g.resolveConversationSystemPrompt()
+	systemPrompt := l.g.resolveConversationSystemPrompt(false)
 
 	summary, err := l.g.narrateWithLLM(l.ctx, systemPrompt, taskData.String(), narrateOpts{
 		timeout:   10 * time.Second,

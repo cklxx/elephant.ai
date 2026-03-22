@@ -1,0 +1,168 @@
+version: "1"
+name: "conversation-process-routing"
+description: "Conversation process decision routing: reply-only vs dispatch_worker vs stop_worker vs query tools. Tests the chat thread LLM's ability to pick the right action."
+scenarios:
+  # -----------------------------------------------------------------------
+  # Reply-only: greetings, chitchat, simple Q&A
+  # -----------------------------------------------------------------------
+  - id: "reply-greeting-zh"
+    category: "reply_only"
+    intent: "你好"
+    expected_tools: []
+
+  - id: "reply-greeting-en"
+    category: "reply_only"
+    intent: "hey"
+    expected_tools: []
+
+  - id: "reply-thanks-zh"
+    category: "reply_only"
+    intent: "谢谢"
+    expected_tools: []
+
+  - id: "reply-chitchat-zh"
+    category: "reply_only"
+    intent: "今天天气怎么样"
+    expected_tools: []
+
+  - id: "reply-simple-qa"
+    category: "reply_only"
+    intent: "Go 的 goroutine 和 thread 有什么区别"
+    expected_tools: []
+
+  - id: "reply-acknowledgement"
+    category: "reply_only"
+    intent: "好的知道了"
+    expected_tools: []
+
+  - id: "reply-emoji-only"
+    category: "reply_only"
+    intent: "👍"
+    expected_tools: []
+
+  # -----------------------------------------------------------------------
+  # dispatch_worker: action requests
+  # -----------------------------------------------------------------------
+  - id: "dispatch-code-refactor"
+    category: "dispatch"
+    intent: "重构一下 auth 模块"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-research-paper"
+    category: "dispatch"
+    intent: "搜索最新的 agent 记忆论文"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-write-doc"
+    category: "dispatch"
+    intent: "帮我写一份技术方案"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-code-review"
+    category: "dispatch"
+    intent: "review 一下最近的 PR"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-debug"
+    category: "dispatch"
+    intent: "帮我看看为什么 CI 挂了"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-analysis-en"
+    category: "dispatch"
+    intent: "analyze the performance bottleneck in the API gateway"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-build-feature"
+    category: "dispatch"
+    intent: "实现一个用户通知的功能"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-implicit-action"
+    category: "dispatch"
+    intent: "把这段代码改成用 context 传递"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-with-skill-match"
+    category: "dispatch"
+    intent: "跑个 QA 测试看看有没有 bug"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-data-analysis"
+    category: "dispatch"
+    intent: "分析一下这周的用户留存数据"
+    expected_tools: ["dispatch_worker"]
+
+  # -----------------------------------------------------------------------
+  # dispatch_worker (inject): follow-up to running task
+  # -----------------------------------------------------------------------
+  - id: "dispatch-inject-followup"
+    category: "dispatch_inject"
+    intent: "用 PostgreSQL 不要用 MySQL"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-inject-correction"
+    category: "dispatch_inject"
+    intent: "等一下，先别提交，我还要改点东西"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "dispatch-cross-task-ref"
+    category: "dispatch_inject"
+    intent: "用 #1 的结果继续做"
+    expected_tools: ["dispatch_worker"]
+
+  # -----------------------------------------------------------------------
+  # stop_worker: cancel/abort
+  # -----------------------------------------------------------------------
+  - id: "stop-explicit-zh"
+    category: "stop"
+    intent: "停"
+    expected_tools: ["stop_worker"]
+
+  - id: "stop-cancel-zh"
+    category: "stop"
+    intent: "取消任务"
+    expected_tools: ["stop_worker"]
+
+  - id: "stop-abort-en"
+    category: "stop"
+    intent: "cancel that"
+    expected_tools: ["stop_worker"]
+
+  - id: "stop-specific-task"
+    category: "stop"
+    intent: "停掉 #1"
+    expected_tools: ["stop_worker"]
+
+  - id: "stop-dont-do-it"
+    category: "stop"
+    intent: "别做了"
+    expected_tools: ["stop_worker"]
+
+  - id: "stop-nevermind"
+    category: "stop"
+    intent: "算了不用了"
+    expected_tools: ["stop_worker"]
+
+  # -----------------------------------------------------------------------
+  # Edge cases: ambiguous intent
+  # -----------------------------------------------------------------------
+  - id: "edge-question-about-task"
+    category: "reply_only"
+    intent: "刚才那个任务是干什么的"
+    expected_tools: []
+
+  - id: "edge-short-command"
+    category: "dispatch"
+    intent: "lint"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "edge-url-request"
+    category: "dispatch"
+    intent: "打开 https://example.com 看看能不能访问"
+    expected_tools: ["dispatch_worker"]
+
+  - id: "edge-mixed-stop-and-new"
+    category: "stop"
+    intent: "停掉现在的，不做了"
+    expected_tools: ["stop_worker"]

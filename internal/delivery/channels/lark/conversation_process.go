@@ -81,64 +81,64 @@ var stopWorkerTool = ports.ToolDefinition{
 
 // defaultConversationReplyRules is the fallback when Config.ConversationReplyRules is empty.
 const defaultConversationReplyRules = `## Reply rules (HARD CONSTRAINTS)
-- Chinese: ≤12 chars, NO 句号, drop 主语/我, casual
-- English: ≤15 chars, lowercase, fragments, no period
+- 中文: ≤12字, 禁句号, 省略主语/我, 口语化
+- English: ≤15 words, lowercase, fragments, no period
 - NEVER use 其实/然后/的话/非常/请/您/好的/可以的
 - One short sentence only. No explanations.`
 
 // conversationSystemPromptBase is the core prompt without reply rules.
 // Reply rules are injected from config (or defaults) at runtime.
-// Unified personality: absorbs task status, usage, notice, and narration voices.
+// Narration voice is injected only when query tools are present (%NARRATION%).
 const conversationSystemPromptBase = `You are an IM chatbot. Reply ultra-short or use tools.
 
-## Decision flow
-Pick the right action:
-- reply only: greetings, chitchat, simple Q&A.
-- dispatch_worker: user wants something done (coding, research, analysis, writing).
-- stop_worker: user wants to cancel a task.
-- query_tasks: user asks about tasks, progress, status, what's running.
-- query_usage: user asks about usage, cost, stats, model info.
-- manage_notice: user wants to bind/check/clear notification group.
+## Decision flow (check in order)
+1. Stop/cancel intent → stop_worker
+2. Action request (coding, research, analysis, writing, anything that takes time) → dispatch_worker
+3. Follow-up to a running task → dispatch_worker (inject)
+4. Everything else (greetings, chitchat, factual Q&A) → reply directly
 
-Every tool call MUST include an "ack" parameter — this is the reply shown to the user.
-- dispatch_worker: one sentence describing the specific action being taken (e.g. '正在检查 kaku panel 状态' / '搜索最新 agent 记忆论文'). NOT a generic '收到'.
-- stop_worker: one sentence describing what's being stopped (e.g. '正在停止 #1 任务').
-- query_tasks / query_usage / manage_notice: narrated summary as ack.
+Every tool call MUST include an "ack" parameter — the reply shown to the user.
 When a skill matches, include its name in the dispatch task.
+Cross-task: include "#N" in task description to reference task N's result.
 
 %REPLY_RULES%
+%NARRATION%
+## Safety
+- Never fabricate info or status.
+- Never include secrets.`
 
-## Narration voice
-When reporting tool results (query_tasks, query_usage, manage_notice):
+// conversationNarrationVoice is injected into the system prompt only when
+// query tools (query_tasks, query_usage, manage_notice) are present.
+const conversationNarrationVoice = `## Narration voice (for query tool ack)
 - Conclusion first, 2-5 sentences.
 - **Bold** key data (counts, costs, durations).
 - Drop technical fields (task_id, status codes, chat_id).
 - Preserve actionable info (links, paths, errors).
 - No Markdown headings, no emoji.
 
-## Task control
-- Follow-up for running task → dispatch_worker (inject).
-- Stop intent → stop_worker.
-- Cross-task: when user says "use #1's result" or "based on what #1 found", include "#1" reference in the dispatch task description. The worker will receive the referenced result as context.
+`
 
-## Safety
-- Never fabricate info or status.
-- Never include secrets.`
-
-// resolveConversationSystemPrompt resolves the %REPLY_RULES% placeholder
-// in conversationSystemPromptBase using config or defaults.
-func (g *Gateway) resolveConversationSystemPrompt() string {
+// resolveConversationSystemPrompt resolves placeholders in
+// conversationSystemPromptBase. hasQueryTools controls whether narration
+// voice instructions are included.
+func (g *Gateway) resolveConversationSystemPrompt(hasQueryTools bool) string {
 	replyRules := g.cfg.ConversationReplyRules
 	if replyRules == "" {
 		replyRules = defaultConversationReplyRules
 	}
-	return strings.Replace(conversationSystemPromptBase, "%REPLY_RULES%", replyRules, 1)
+	narration := ""
+	if hasQueryTools {
+		narration = conversationNarrationVoice
+	}
+	prompt := strings.Replace(conversationSystemPromptBase, "%REPLY_RULES%", replyRules, 1)
+	return strings.Replace(prompt, "%NARRATION%", narration, 1)
 }
 
 // imBaseReplacer covers formal→casual substitutions that are always safe to apply.
+// Only includes replacements that cannot break mid-sentence meaning.
 var imBaseReplacer = strings.NewReplacer(
-	"请稍等", "等下",
 	"请稍等一下", "等下",
+	"请稍等", "等下",
 	"您好", "你好",
 	"您", "你",
 	"非常感谢", "谢了",
@@ -149,14 +149,7 @@ var imBaseReplacer = strings.NewReplacer(
 	"收到了", "收到",
 	"没有问题", "没问题",
 	"需要我帮", "要我帮",
-	"我已经", "",
-	"因为", "",
-	"所以", "",
-	"其实", "",
-	"然后", "",
-	"的话", "",
 	"非常", "很",
-	"可以", "行",
 )
 
 // imCasualReplacer covers additional aggressive substitutions used when
@@ -274,9 +267,10 @@ func resolveTaskReferences(taskContent string, slotMap *chatSlotMap) string {
 
 // prefetchResult holds pre-fetched query data and tool list decisions.
 type prefetchResult struct {
-	extraContext string                 // pre-fetched data to inject in user message
-	tools        []ports.ToolDefinition // full tool list for this request
-	maxTokens    int                    // dynamic token budget
+	extraContext  string                 // pre-fetched data to inject in user message
+	tools         []ports.ToolDefinition // full tool list for this request
+	maxTokens     int                    // dynamic token budget
+	hasQueryTools bool                   // whether any query tools are included
 }
 
 // taskQueryKeywords triggers query_tasks tool inclusion + pre-fetch.
@@ -379,9 +373,10 @@ collect:
 	}
 
 	return prefetchResult{
-		extraContext: strings.Join(extraParts, "\n\n"),
-		tools:       tools,
-		maxTokens:   conversationMaxTok,
+		extraContext:  strings.Join(extraParts, "\n\n"),
+		tools:         tools,
+		maxTokens:     conversationMaxTok,
+		hasQueryTools: true,
 	}
 }
 
@@ -517,14 +512,15 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 // conversationLLMOpts configures the conversation LLM call.
 type conversationLLMOpts struct {
-	senderID     string
-	userMsg      string
-	workers      workerSnapshotList
-	chatHistory  string
-	tools        []ports.ToolDefinition
-	maxTokens    int
-	extraContext string // pre-fetched data injected before user message
-	chatID       string // when set, inject sliding context from chatConversationContext
+	senderID       string
+	userMsg        string
+	workers        workerSnapshotList
+	chatHistory    string
+	tools          []ports.ToolDefinition
+	maxTokens      int
+	extraContext   string // pre-fetched data injected before user message
+	chatID         string // when set, inject sliding context from chatConversationContext
+	hasQueryTools  bool   // when true, inject narration voice section into system prompt
 }
 
 // conversationLLMCall is the unified conversation LLM entry point.
@@ -541,7 +537,7 @@ func (g *Gateway) conversationLLMCall(ctx context.Context, opts conversationLLMO
 	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultConversationTimeout)
 	defer cancel()
 
-	systemPrompt := g.buildConversationSystemPrompt(ctx, opts.senderID)
+	systemPrompt := g.buildConversationSystemPrompt(ctx, opts.senderID, opts.hasQueryTools)
 
 	var sb strings.Builder
 	sb.WriteString("Worker status: ")
@@ -590,14 +586,15 @@ func (g *Gateway) conversationLLMCall(ctx context.Context, opts conversationLLMO
 // based on the prefetch result. Injects sliding context and pre-fetched data.
 func (g *Gateway) conversationLLMDynamic(ctx context.Context, msg *incomingMessage, workers workerSnapshotList, chatHistory string, pf prefetchResult) (string, []ports.ToolCall, error) {
 	return g.conversationLLMCall(ctx, conversationLLMOpts{
-		senderID:     msg.senderID,
-		userMsg:      msg.content,
-		workers:      workers,
-		chatHistory:  chatHistory,
-		tools:        pf.tools,
-		maxTokens:    pf.maxTokens,
-		extraContext: pf.extraContext,
-		chatID:       msg.chatID,
+		senderID:      msg.senderID,
+		userMsg:       msg.content,
+		workers:       workers,
+		chatHistory:   chatHistory,
+		tools:         pf.tools,
+		maxTokens:     pf.maxTokens,
+		extraContext:  pf.extraContext,
+		chatID:        msg.chatID,
+		hasQueryTools: pf.hasQueryTools,
 	})
 }
 
@@ -617,7 +614,8 @@ func (g *Gateway) conversationLLMWithList(ctx context.Context, senderID, userMsg
 // buildConversationSystemPrompt composes the conversation router's system
 // prompt by prepending memory context (SOUL.md, USER.md, long-term) and
 // appending date/timezone when available. Uses a 60-second TTL cache per senderID.
-func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string) string {
+// hasQueryTools controls whether narration voice instructions are included.
+func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string, hasQueryTools bool) string {
 	var sections []string
 
 	if g.conversationPromptLoader != nil {
@@ -627,7 +625,7 @@ func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID st
 		}
 	}
 
-	sections = append(sections, strings.TrimSpace(g.resolveConversationSystemPrompt()))
+	sections = append(sections, strings.TrimSpace(g.resolveConversationSystemPrompt(hasQueryTools)))
 
 	now := g.currentTime()
 	sections = append(sections, fmt.Sprintf("Current date: %s (%s)", now.Format("2006-01-02"), now.Location().String()))
