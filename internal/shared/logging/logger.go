@@ -34,13 +34,13 @@ func IsNil(logger Logger) bool {
 	if logger == nil {
 		return true
 	}
-	val := reflect.ValueOf(logger)
-	switch val.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Func:
-		return val.IsNil()
-	default:
+	// Fast path: nopLogger is a value type, never nil — skip reflect.
+	if _, ok := logger.(nopLogger); ok {
 		return false
 	}
+	// Only use reflect for interface wrapping edge cases
+	v := reflect.ValueOf(logger)
+	return v.Kind() == reflect.Ptr && v.IsNil()
 }
 
 // OrNop returns logger when non-nil, otherwise a no-op logger.

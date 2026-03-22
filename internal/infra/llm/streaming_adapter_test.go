@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
-	portsllm "alex/internal/domain/agent/ports/llm"
 )
 
 type nonStreamingClient struct {
@@ -22,13 +21,9 @@ func TestEnsureStreamingClientWrapsNonStreaming(t *testing.T) {
 	base := &nonStreamingClient{content: "hello"}
 
 	wrapped := EnsureStreamingClient(base)
-	streaming, ok := wrapped.(portsllm.StreamingLLMClient)
-	if !ok {
-		t.Fatalf("expected wrapped client to implement StreamingLLMClient")
-	}
 
 	var deltas []ports.ContentDelta
-	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+	resp, err := wrapped.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
 		OnContentDelta: func(delta ports.ContentDelta) {
 			deltas = append(deltas, delta)
 		},

@@ -106,10 +106,7 @@ func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
 	if streaming, ok := c.underlying.(portsllm.StreamingLLMClient); ok {
 		return streaming
 	}
-	if adapted, ok := EnsureStreamingClient(c.underlying).(portsllm.StreamingLLMClient); ok {
-		return adapted
-	}
-	return nil
+	return EnsureStreamingClient(c.underlying)
 }
 
 // calculateBackoff returns the delay for the given retry attempt using exponential backoff with jitter.

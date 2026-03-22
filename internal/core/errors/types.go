@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -315,70 +317,18 @@ func isPermanentHTTPStatus(statusCode int) bool {
 	return false
 }
 
+var httpStatusCodeRe = regexp.MustCompile(`(?:status |HTTP |error )?(\d{3})\b`)
+
 func extractHTTPStatusCode(err error) int {
-	errStr := err.Error()
-
-	// Try to extract status code from error message
-	// Format: "API error 429: ..." or "HTTP 500: ..."
-	patterns := []string{
-		"status 429", "429", "status 400", "400", "status 401", "401",
-		"status 403", "403", "status 404", "404", "status 500", "500",
-		"status 502", "502", "status 503", "503", "status 504", "504",
+	m := httpStatusCodeRe.FindStringSubmatch(err.Error())
+	if m == nil {
+		return 0
 	}
-
-	lowerErr := strings.ToLower(errStr)
-	for _, pattern := range patterns {
-		if strings.Contains(lowerErr, pattern) {
-			// Extract the number
-			if strings.HasPrefix(pattern, "status ") {
-				code := strings.TrimPrefix(pattern, "status ")
-				switch code {
-				case "400":
-					return 400
-				case "401":
-					return 401
-				case "403":
-					return 403
-				case "404":
-					return 404
-				case "429":
-					return 429
-				case "500":
-					return 500
-				case "502":
-					return 502
-				case "503":
-					return 503
-				case "504":
-					return 504
-				}
-			} else {
-				// Just the number
-				switch pattern {
-				case "400":
-					return 400
-				case "401":
-					return 401
-				case "403":
-					return 403
-				case "404":
-					return 404
-				case "429":
-					return 429
-				case "500":
-					return 500
-				case "502":
-					return 502
-				case "503":
-					return 503
-				case "504":
-					return 504
-				}
-			}
-		}
+	code, _ := strconv.Atoi(m[1])
+	if code < 100 || code > 599 {
+		return 0
 	}
-
-	return 0
+	return code
 }
 
 func wrappedErrorMessage(kind string, message string, err error) string {

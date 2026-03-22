@@ -75,9 +75,9 @@ func (c *pinnedRateLimitFallbackClient) StreamComplete(
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
 	if c.useFallback.Load() {
-		return llm.EnsureStreamingClient(c.fallback).(llm.StreamingLLMClient).StreamComplete(ctx, req, callbacks)
+		return llm.EnsureStreamingClient(c.fallback).StreamComplete(ctx, req, callbacks)
 	}
-	streamingPrimary := llm.EnsureStreamingClient(c.primary).(llm.StreamingLLMClient)
+	streamingPrimary := llm.EnsureStreamingClient(c.primary)
 	resp, err := streamingPrimary.StreamComplete(ctx, req, callbacks)
 	if err == nil || !llmclient.IsRateLimitError(err) {
 		return resp, err
@@ -85,7 +85,7 @@ func (c *pinnedRateLimitFallbackClient) StreamComplete(
 	c.activateFallback(err)
 	fbCtx, fbCancel := utils.WithFreshDeadline(ctx, pinnedFallbackDeadline)
 	defer fbCancel()
-	return llm.EnsureStreamingClient(c.fallback).(llm.StreamingLLMClient).StreamComplete(fbCtx, req, callbacks)
+	return llm.EnsureStreamingClient(c.fallback).StreamComplete(fbCtx, req, callbacks)
 }
 
 func (c *pinnedRateLimitFallbackClient) activateFallback(err error) {

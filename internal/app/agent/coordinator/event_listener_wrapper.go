@@ -149,7 +149,10 @@ func (s *SerializingEventListener) runQueue(runID string, queue *eventQueue) {
 			if barrier, ok := event.(*flushBarrierEvent); ok && barrier != nil {
 				close(barrier.done)
 				if !timer.Stop() {
-					<-timer.C
+					select {
+					case <-timer.C:
+					default:
+					}
 				}
 				timer.Reset(s.idleTimeout)
 				continue
@@ -160,7 +163,10 @@ func (s *SerializingEventListener) runQueue(runID string, queue *eventQueue) {
 				return
 			}
 			if !timer.Stop() {
-				<-timer.C
+				select {
+				case <-timer.C:
+				default:
+				}
 			}
 			timer.Reset(s.idleTimeout)
 		case <-timer.C:

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"alex/internal/domain/agent/ports"
-	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
 	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
@@ -164,11 +163,7 @@ func (c *retryClient) tryFallbackStreamComplete(
 		return nil, err
 	}
 
-	streamingFB, ok := EnsureStreamingClient(fallbackClient).(portsllm.StreamingLLMClient)
-	if !ok {
-		c.logger.Warn("[FALLBACK] Fallback client %s/%s does not support streaming", c.fallbackProvider, c.fallbackModel)
-		return nil, fmt.Errorf("fallback client does not support streaming")
-	}
+	streamingFB := EnsureStreamingClient(fallbackClient)
 
 	const fallbackDeadline = 90 * time.Second
 	fallbackCtx, fallbackCancel := utils.WithFreshDeadline(ctx, fallbackDeadline)

@@ -108,7 +108,7 @@ func (h *PredictionHook) OnTaskCompleted(ctx context.Context, result TaskResultI
 }
 
 func (h *PredictionHook) predictWithLLM(ctx context.Context, result TaskResultInfo) []string {
-	profile, fallbackProfile, canFallback, ok := h.resolveProfile(ctx)
+	profile, fallbackProfile, canFallback, ok := resolveProfile(ctx, h.config.Profile)
 	if !ok {
 		return nil
 	}
@@ -136,11 +136,15 @@ func (h *PredictionHook) predictWithLLM(ctx context.Context, result TaskResultIn
 		},
 	}
 
-	resp, err := h.completeWithProfile(ctx, profile, req)
+	timeout := h.config.Timeout
+	makeTimeout := func(parent context.Context) (context.Context, context.CancelFunc) {
+		return context.WithTimeout(parent, timeout)
+	}
+	resp, err := completeWithProfile(ctx, h.factory, profile, req, makeTimeout)
 	if err != nil {
 		if canFallback && llmclient.IsRateLimitError(err) {
 			h.logger.Warn("Prediction hook pinned model rate-limited; retrying with default profile")
-			if fallbackResp, fallbackErr := h.completeWithProfile(ctx, fallbackProfile, req); fallbackErr == nil {
+			if fallbackResp, fallbackErr := completeWithProfile(ctx, h.factory, fallbackProfile, req, makeTimeout); fallbackErr == nil {
 				resp = fallbackResp
 				err = nil
 			}
@@ -154,48 +158,6 @@ func (h *PredictionHook) predictWithLLM(ctx context.Context, result TaskResultIn
 		return nil
 	}
 	return parsePredictionLines(resp.Content)
-}
-
-func (h *PredictionHook) completeWithProfile(
-	ctx context.Context,
-	profile runtimeconfig.LLMProfile,
-	req ports.CompletionRequest,
-) (*ports.CompletionResponse, error) {
-	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
-	if err != nil {
-		return nil, err
-	}
-	ctxTimeout, cancel := context.WithTimeout(ctx, h.config.Timeout)
-	defer cancel()
-	return client.Complete(ctxTimeout, req)
-}
-
-func (h *PredictionHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, runtimeconfig.LLMProfile, bool, bool) {
-	defaultProfile := h.config.Profile
-	defaultOK := !utils.IsBlank(defaultProfile.Provider) && !utils.IsBlank(defaultProfile.Model)
-
-	if selection, ok := appcontext.GetLLMSelection(ctx); ok {
-		provider := strings.TrimSpace(selection.Provider)
-		model := strings.TrimSpace(selection.Model)
-		if provider != "" && model != "" {
-			profile := runtimeconfig.LLMProfile{
-				Provider: provider,
-				Model:    model,
-				APIKey:   strings.TrimSpace(selection.APIKey),
-				BaseURL:  strings.TrimSpace(selection.BaseURL),
-				Headers:  llmclient.CloneHeaders(selection.Headers),
-			}
-			if selection.Pinned && defaultOK && !sameProviderModel(profile, defaultProfile) {
-				return profile, defaultProfile, true, true
-			}
-			return profile, runtimeconfig.LLMProfile{}, false, true
-		}
-	}
-
-	if !defaultOK {
-		return runtimeconfig.LLMProfile{}, runtimeconfig.LLMProfile{}, false, false
-	}
-	return defaultProfile, runtimeconfig.LLMProfile{}, false, true
 }
 
 func buildPredictionPrompt(result TaskResultInfo) string {

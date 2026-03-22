@@ -269,7 +269,7 @@ func (s *fileCostStore) updateSessionIndex(record agentstorage.UsageRecord) erro
 			return err
 		}
 
-		if err := os.WriteFile(indexFile, data, 0644); err != nil {
+		if err := fstore.AtomicWrite(indexFile, data, 0644); err != nil {
 			return err
 		}
 	}

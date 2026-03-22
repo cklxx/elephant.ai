@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/agent/cost"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/utils"
 )
@@ -85,7 +86,7 @@ func (g *Gateway) formatCurrentModel(_ context.Context, msg *incomingMessage) st
 		if provider != "" {
 			sb.WriteString(fmt.Sprintf(" (%s)", provider))
 		}
-		pricing := agentstorage.GetModelPricing(model)
+		pricing := cost.GetModelPricing(model)
 		if pricing.InputPer1K > 0 {
 			sb.WriteString(fmt.Sprintf("\n\u5355\u4ef7: $%.4f / $%.4f per 1K tokens (in/out)", // "单价"
 				pricing.InputPer1K, pricing.OutputPer1K))

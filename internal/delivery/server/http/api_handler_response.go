@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"alex/internal/shared/errsanitize"
 )
 
 type apiErrorResponse struct {
@@ -66,7 +68,11 @@ func (h *APIHandler) writeJSONError(w http.ResponseWriter, status int, message s
 
 	resp := apiErrorResponse{Error: message}
 	if err != nil {
-		resp.Details = err.Error()
+		if h.devMode {
+			resp.Details = err.Error()
+		} else {
+			resp.Details = errsanitize.ForUser(err.Error())
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

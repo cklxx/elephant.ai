@@ -25,5 +25,5 @@ func NewOpenAIResponsesClient(model string, config Config) (portsllm.LLMClient, 
 }
 
 func (c *openAIResponsesClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
-	c.usageCallback = callback
+	c.baseClient.SetUsageCallback(callback)
 }

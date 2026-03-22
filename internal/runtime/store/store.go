@@ -163,9 +163,9 @@ func (s *Store) RecentEvents(sessionID string, n int) []string {
 		return nil
 	}
 	path := s.eventsPath(sessionID)
-	s.mu.Lock()
+	s.mu.RLock()
 	data, err := os.ReadFile(path)
-	s.mu.Unlock()
+	s.mu.RUnlock()
 	if err != nil {
 		return nil
 	}

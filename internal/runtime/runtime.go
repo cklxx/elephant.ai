@@ -15,8 +15,9 @@ package runtime
 
 import (
 	"context"
+	crypto_rand "crypto/rand"
 	"fmt"
-	"math/rand"
+	math_rand "math/rand"
 	"sync"
 	"time"
 
@@ -547,9 +548,16 @@ func (rt *Runtime) clearSessionRuntime(id string) {
 // newSessionID generates a short random session identifier.
 func newSessionID() string {
 	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, 8)
+	b := make([]byte, 12)
+	if _, err := crypto_rand.Read(b); err != nil {
+		// fallback
+		for i := range b {
+			b[i] = chars[math_rand.Intn(len(chars))]
+		}
+		return "rs-" + string(b)
+	}
 	for i := range b {
-		b[i] = chars[rand.Intn(len(chars))]
+		b[i] = chars[int(b[i])%len(chars)]
 	}
 	return "rs-" + string(b)
 }

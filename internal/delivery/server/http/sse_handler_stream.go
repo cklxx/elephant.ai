@@ -447,14 +447,15 @@ func (h *SSEHandler) newEventSender(cfg sseEventSenderConfig) func(agent.AgentEv
 			return false
 		}
 
-		payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event.EventType(), data)
 		if err := writeAndFlushSSEEvent(cfg.writer, cfg.flusher, event.EventType(), data); err != nil {
 			cfg.logger.Error("%s: %v", cfg.writeFailureLabel, err)
 			h.recordSSEEventMetric(cfg, event.EventType(), "write_error", 0)
 			return false
 		}
 
-		h.recordSSEEventMetric(cfg, event.EventType(), "ok", int64(len(payload)))
+		// SSE framing overhead: "event: " + eventType + "\ndata: " + data + "\n\n"
+		sseSize := int64(len("event: ") + len(event.EventType()) + len("\ndata: ") + len(data) + len("\n\n"))
+		h.recordSSEEventMetric(cfg, event.EventType(), "ok", sseSize)
 		return true
 	}
 }

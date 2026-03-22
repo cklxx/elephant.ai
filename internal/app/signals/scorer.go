@@ -39,7 +39,7 @@ func NewScorer(client llm.LLMClient, budgetPerHour int, nowFn func() time.Time) 
 
 // Score assigns a 0-100 attention score to the event.
 // Fast path uses keyword patterns. Slow path calls LLM for ambiguous signals.
-func (s *Scorer) Score(ctx context.Context, event *SignalEvent) error {
+func (s *Scorer) Score(ctx context.Context, event *SignalEvent) {
 	score := keywordScore(event.Content)
 	if score >= 40 && score <= 80 && s.tryUseBudget() {
 		llmScore, err := s.llmScore(ctx, event)
@@ -48,7 +48,6 @@ func (s *Scorer) Score(ctx context.Context, event *SignalEvent) error {
 		}
 	}
 	event.Score = clamp(score, 0, 100)
-	return nil
 }
 
 func (s *Scorer) tryUseBudget() bool {

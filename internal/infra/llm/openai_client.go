@@ -210,7 +210,7 @@ func (c *openaiClient) buildOpenAIRequest(req ports.CompletionRequest, stream bo
 
 // SetUsageCallback implements UsageTrackingClient
 func (c *openaiClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
-	c.usageCallback = callback
+	c.baseClient.SetUsageCallback(callback)
 }
 
 // detectProvider infers the provider name from the base URL.

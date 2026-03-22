@@ -95,7 +95,7 @@ func (g *Graph) processLoop(ctx context.Context) {
 }
 
 func (g *Graph) processEvent(ctx context.Context, event SignalEvent) {
-	_ = g.scorer.Score(ctx, &event)
+	g.scorer.Score(ctx, &event)
 	event.Route = g.router.Route(ctx, &event)
 	g.buffer.Push(event)
 	for _, h := range g.handlers {

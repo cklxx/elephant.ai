@@ -55,7 +55,7 @@ func (t *costTracker) RecordUsage(ctx context.Context, usage storage.UsageRecord
 
 	// Calculate costs if not already set
 	if usage.TotalCost == 0 {
-		inputCost, outputCost, totalCost := storage.CalculateCost(
+		inputCost, outputCost, totalCost := CalculateCost(
 			usage.InputTokens,
 			usage.OutputTokens,
 			usage.Model,

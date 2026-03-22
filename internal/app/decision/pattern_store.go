@@ -66,6 +66,10 @@ func (ps *PatternStore) FindMatching(category, condition string) []*Pattern {
 			results = append(results, &cp)
 		}
 	}
+	// Sort by confidence descending for deterministic ordering.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Confidence > results[j].Confidence
+	})
 	return results
 }
 

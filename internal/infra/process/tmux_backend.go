@@ -84,7 +84,7 @@ func (b *TmuxBackend) Start(ctx context.Context, cfg ProcessConfig) (ProcessHand
 			sessionName: sessionName,
 			done:        make(chan struct{}),
 		}
-		close(h.done)
+		h.closeOnce.Do(func() { close(h.done) })
 		return h, nil
 	}
 
@@ -135,6 +135,7 @@ type tmuxHandle struct {
 	done        chan struct{}
 	err         error
 	mu          sync.Mutex
+	closeOnce   sync.Once
 }
 
 func (h *tmuxHandle) Backend() string  { return "tmux" }
@@ -188,7 +189,7 @@ func (h *tmuxHandle) monitor(timeout time.Duration) {
 		case <-ticker.C:
 			if !IsAlive(h.pid) {
 				h.mu.Lock()
-				close(h.done)
+				h.closeOnce.Do(func() { close(h.done) })
 				h.mu.Unlock()
 				// Clean up tmux session.
 				_ = exec.Command("tmux", "-L", tmuxSocket, "kill-session", "-t", h.sessionName).Run()

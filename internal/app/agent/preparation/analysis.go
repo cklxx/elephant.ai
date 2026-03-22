@@ -103,12 +103,9 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 // streaming-vs-non-streaming branching that was previously copy-pasted across
 // preAnalyzeTask and composeHistorySummary.
 func completeWithStreaming(ctx context.Context, client llm.LLMClient, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	if streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient); ok {
-		return streaming.StreamComplete(ctx, req, ports.CompletionStreamCallbacks{
-			OnContentDelta: func(ports.ContentDelta) {},
-		})
-	}
-	return client.Complete(ctx, req)
+	return llm.EnsureStreamingClient(client).StreamComplete(ctx, req, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(ports.ContentDelta) {},
+	})
 }
 
 func quickTriageTask(task string) (*agent.TaskAnalysis, bool) {

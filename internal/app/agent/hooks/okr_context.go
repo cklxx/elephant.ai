@@ -2,9 +2,8 @@ package hooks
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
+	"alex/internal/app/agent/preparation"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/logging"
 )
@@ -50,7 +49,7 @@ func (h *OKRContextHook) OnTaskStart(_ context.Context, _ TaskInfo) []Injection 
 		return nil
 	}
 
-	content := h.buildOKRSummary(goals)
+	content := preparation.FormatOKRGoalsSummary(goals)
 	if content == "" {
 		return nil
 	}
@@ -69,39 +68,4 @@ func (h *OKRContextHook) OnTaskStart(_ context.Context, _ TaskInfo) []Injection 
 
 func (h *OKRContextHook) OnTaskCompleted(_ context.Context, _ TaskResultInfo) error {
 	return nil
-}
-
-func (h *OKRContextHook) buildOKRSummary(goals []*okr.GoalFile) string {
-	var sb strings.Builder
-	sb.WriteString("**Active OKR Goals:**\n\n")
-
-	for _, goal := range goals {
-		sb.WriteString(fmt.Sprintf("### %s", goal.Meta.ID))
-		if goal.Meta.TimeWindow.Start != "" && goal.Meta.TimeWindow.End != "" {
-			sb.WriteString(fmt.Sprintf(" (%s → %s)", goal.Meta.TimeWindow.Start, goal.Meta.TimeWindow.End))
-		}
-		sb.WriteString("\n")
-
-		for krID, kr := range goal.Meta.KeyResults {
-			freshness := ""
-			if kr.Updated != "" {
-				freshness = fmt.Sprintf(" (data from %s)", kr.Updated)
-			}
-			riskIcon := "✓"
-			if kr.ProgressPct < 25 {
-				riskIcon = "⚠"
-			} else if kr.ProgressPct < 10 {
-				riskIcon = "✗"
-			}
-			sb.WriteString(fmt.Sprintf("- %s **%s**: %.0f/%.0f (%.1f%%) %s%s\n",
-				riskIcon, krID, kr.Current, kr.Target, kr.ProgressPct, kr.Confidence, freshness))
-		}
-
-		if goal.Meta.ReviewCadence != "" {
-			sb.WriteString(fmt.Sprintf("- Review cadence: `%s`\n", goal.Meta.ReviewCadence))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
 }

@@ -113,7 +113,7 @@ func (d *Detector) DetectChanges(ctx context.Context) ([]ScopeChangeEvent, error
 
 	for _, item := range page.Items {
 		key := snapshotKey(item)
-		current := takeSnapshot(item)
+		current := d.takeSnapshot(item)
 		prev, exists := d.snapshots[key]
 
 		if exists {
@@ -213,12 +213,12 @@ func snapshotKey(item *workitem.WorkItem) string {
 	return fmt.Sprintf("%s:%s:%s", item.Provider, item.WorkspaceID, item.ID)
 }
 
-func takeSnapshot(item *workitem.WorkItem) *itemSnapshot {
+func (d *Detector) takeSnapshot(item *workitem.WorkItem) *itemSnapshot {
 	snap := &itemSnapshot{
 		DescHash:   hashString(item.Description),
 		Points:     item.Metadata["story_points"],
 		AssigneeID: item.Assignee.ExternalID,
-		CapturedAt: time.Now(),
+		CapturedAt: d.nowFunc(),
 	}
 	if dl, ok := item.Metadata["deadline"]; ok {
 		snap.Deadline = dl

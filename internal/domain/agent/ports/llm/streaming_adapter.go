@@ -17,12 +17,12 @@ var _ StreamingLLMClient = (*streamingAdapter)(nil)
 // EnsureStreamingClient guarantees the returned client implements
 // StreamingLLMClient by wrapping non-streaming implementations with a fallback
 // adapter.
-func EnsureStreamingClient(client LLMClient) LLMClient {
+func EnsureStreamingClient(client LLMClient) StreamingLLMClient {
 	if client == nil {
 		return nil
 	}
-	if _, ok := client.(StreamingLLMClient); ok {
-		return client
+	if sc, ok := client.(StreamingLLMClient); ok {
+		return sc
 	}
 	return &streamingAdapter{base: client}
 }

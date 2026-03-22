@@ -6,6 +6,7 @@ package pool
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 )
@@ -94,7 +95,11 @@ func (p *Pool) Release(paneID int) {
 	slot.SessionID = ""
 	p.mu.Unlock()
 
-	p.avail <- paneID
+	select {
+	case p.avail <- paneID:
+	default:
+		slog.Warn("pool: channel full on release, possible double-release", "paneID", paneID)
+	}
 }
 
 // Slots returns a snapshot of all slots, sorted by pane ID.

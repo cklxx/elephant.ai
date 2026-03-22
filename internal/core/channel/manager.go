@@ -145,6 +145,12 @@ func (m *Manager) flushLocked(ctx context.Context, ch Channel, sessionID, key st
 	buf.lastSend = time.Now()
 	buf.firstMsg = time.Time{}
 
+	// Remove the buffer entry to prevent memory leaks from accumulating
+	// empty buffers for sessions that are no longer active.
+	m.mu.Lock()
+	delete(m.buffers, key)
+	m.mu.Unlock()
+
 	return ch.Send(ctx, sessionID, combined)
 }
 

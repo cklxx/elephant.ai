@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
@@ -12,13 +13,24 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	maxBucketEntries = 1000
+	bucketEvictAfter = 1 * time.Hour
+)
+
+// bucketEntry wraps a rate limiter with a last-used timestamp for eviction.
+type bucketEntry struct {
+	limiter  *rate.Limiter
+	lastUsed time.Time
+}
+
 // userRateLimitedClient applies per-user rate limiting around LLM calls.
 type userRateLimitedClient struct {
 	base   portsllm.LLMClient
 	limit  rate.Limit
 	burst  int
 	mu     sync.Mutex
-	bucket map[string]*rate.Limiter
+	bucket map[string]*bucketEntry
 }
 
 // streamingUserRateLimitedClient preserves streaming support while enforcing the
@@ -50,16 +62,12 @@ func WrapWithUserRateLimit(client portsllm.LLMClient, limit rate.Limit, burst in
 		base:   client,
 		limit:  limit,
 		burst:  burst,
-		bucket: make(map[string]*rate.Limiter),
-	}
-
-	if streaming, ok := client.(portsllm.StreamingLLMClient); ok {
-		return streamingUserRateLimitedClient{userRateLimitedClient: wrapper, streaming: streaming}
+		bucket: make(map[string]*bucketEntry),
 	}
 
 	return streamingUserRateLimitedClient{
 		userRateLimitedClient: wrapper,
-		streaming:             EnsureStreamingClient(client).(portsllm.StreamingLLMClient),
+		streaming:             EnsureStreamingClient(client),
 	}
 }
 
@@ -88,15 +96,29 @@ func (c *userRateLimitedClient) limiterForUser(userID string) *rate.Limiter {
 		key = "anonymous"
 	}
 
+	now := time.Now()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	limiter, ok := c.bucket[key]
-	if !ok {
-		limiter = rate.NewLimiter(c.limit, c.burst)
-		c.bucket[key] = limiter
+	entry, ok := c.bucket[key]
+	if ok {
+		entry.lastUsed = now
+		return entry.limiter
 	}
 
+	// Evict stale entries when the map exceeds the maximum size.
+	if len(c.bucket) >= maxBucketEntries {
+		cutoff := now.Add(-bucketEvictAfter)
+		for k, e := range c.bucket {
+			if e.lastUsed.Before(cutoff) {
+				delete(c.bucket, k)
+			}
+		}
+	}
+
+	limiter := rate.NewLimiter(c.limit, c.burst)
+	c.bucket[key] = &bucketEntry{limiter: limiter, lastUsed: now}
 	return limiter
 }
 

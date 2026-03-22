@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 )
 
@@ -26,21 +25,12 @@ const (
 	ToolPresetArchitect ToolPreset = "architect"
 )
 
-// ToolConfig contains tool access configuration for a preset
+// ToolConfig contains tool access configuration for a preset.
+// All presets currently grant unrestricted access; the struct is
+// retained so callers that inspect config.Name continue to work.
 type ToolConfig struct {
-	Name         string
-	Description  string
-	AllowedTools map[string]bool // nil means all tools allowed
-	DeniedTools  map[string]bool // Tools explicitly denied
-}
-
-func unrestrictedToolConfig(name, description string) *ToolConfig {
-	return &ToolConfig{
-		Name:         name,
-		Description:  description,
-		AllowedTools: nil,
-		DeniedTools:  map[string]bool{},
-	}
+	Name        string
+	Description string
 }
 
 // NormalizeToolMode trims and normalizes tool mode values, defaulting to CLI.
@@ -62,29 +52,20 @@ func DefaultToolPresetForMode(mode ToolMode, preset string) string {
 }
 
 // GetToolConfig returns the tool configuration for a mode and preset.
+// All valid combinations return unrestricted access.
 func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	if mode == "" {
 		mode = ToolModeCLI
 	}
 	switch mode {
 	case ToolModeWeb:
-		if preset == "" {
-			return unrestrictedToolConfig(
-				"Web Mode",
-				"Unrestricted tool access for web mode",
-			), nil
-		}
 		switch preset {
-		case ToolPresetArchitect:
-			return unrestrictedToolConfig(
-				"Architect Access",
-				"Unrestricted tool access for architect preset in web mode",
-			), nil
-		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe:
-			return unrestrictedToolConfig(
-				"Web Mode",
-				"Unrestricted tool access for web mode",
-			), nil
+		case "", ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect:
+			name := "Web Mode"
+			if preset == ToolPresetArchitect {
+				name = "Architect Access"
+			}
+			return &ToolConfig{Name: name, Description: "Unrestricted tool access"}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}
@@ -94,25 +75,13 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		}
 		switch preset {
 		case ToolPresetFull:
-			return unrestrictedToolConfig(
-				"Full Access",
-				"All tools available - unrestricted access",
-			), nil
+			return &ToolConfig{Name: "Full Access", Description: "All tools available - unrestricted access"}, nil
 		case ToolPresetReadOnly:
-			return unrestrictedToolConfig(
-				"Read-Only Access",
-				"All tools available - preset label retained for compatibility",
-			), nil
+			return &ToolConfig{Name: "Read-Only Access", Description: "All tools available - preset label retained for compatibility"}, nil
 		case ToolPresetSafe:
-			return unrestrictedToolConfig(
-				"Safe Mode",
-				"All tools available - preset label retained for compatibility",
-			), nil
+			return &ToolConfig{Name: "Safe Mode", Description: "All tools available - preset label retained for compatibility"}, nil
 		case ToolPresetArchitect:
-			return unrestrictedToolConfig(
-				"Architect Access",
-				"All tools available - preset label retained for compatibility",
-			), nil
+			return &ToolConfig{Name: "Architect Access", Description: "All tools available - preset label retained for compatibility"}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}
@@ -121,79 +90,14 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	}
 }
 
-// filteredToolRegistry wraps a tool registry with preset-based filtering.
-type filteredToolRegistry struct {
-	parent tools.ToolRegistry
-	config *ToolConfig
-}
-
-// NewFilteredToolRegistry creates a filtered registry based on tool mode and preset.
+// NewFilteredToolRegistry returns the parent registry unchanged because all
+// presets grant unrestricted tool access. The function is kept for API
+// compatibility with existing callers.
 func NewFilteredToolRegistry(parent tools.ToolRegistry, mode ToolMode, preset ToolPreset) (tools.ToolRegistry, error) {
-	config, err := GetToolConfig(mode, preset)
-	if err != nil {
+	if _, err := GetToolConfig(mode, preset); err != nil {
 		return nil, err
 	}
-
-	return &filteredToolRegistry{
-		parent: parent,
-		config: config,
-	}, nil
-}
-
-// Get retrieves a tool if allowed by the preset
-func (f *filteredToolRegistry) Get(name string) (tools.ToolExecutor, error) {
-	// Check if tool is denied
-	if f.config.DeniedTools[name] {
-		return nil, fmt.Errorf("tool not available in %s preset: %s", f.config.Name, name)
-	}
-
-	// If AllowedTools is nil, all tools are allowed (unless explicitly denied)
-	if f.config.AllowedTools == nil {
-		return f.parent.Get(name)
-	}
-
-	// Check if tool is in allowed list
-	if !f.config.AllowedTools[name] {
-		return nil, fmt.Errorf("tool not available in %s preset: %s", f.config.Name, name)
-	}
-
-	return f.parent.Get(name)
-}
-
-// List returns only tools allowed by the preset
-func (f *filteredToolRegistry) List() []ports.ToolDefinition {
-	allTools := f.parent.List()
-	filtered := make([]ports.ToolDefinition, 0)
-
-	for _, tool := range allTools {
-		// Skip denied tools
-		if f.config.DeniedTools[tool.Name] {
-			continue
-		}
-
-		// If AllowedTools is nil, include all (unless denied)
-		if f.config.AllowedTools == nil {
-			filtered = append(filtered, tool)
-			continue
-		}
-
-		// Include only allowed tools
-		if f.config.AllowedTools[tool.Name] {
-			filtered = append(filtered, tool)
-		}
-	}
-
-	return filtered
-}
-
-// Register delegates to parent registry
-func (f *filteredToolRegistry) Register(tool tools.ToolExecutor) error {
-	return f.parent.Register(tool)
-}
-
-// Unregister delegates to parent registry
-func (f *filteredToolRegistry) Unregister(name string) error {
-	return f.parent.Unregister(name)
+	return parent, nil
 }
 
 // IsValidToolPreset checks if a tool preset is valid

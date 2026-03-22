@@ -36,7 +36,16 @@ func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
 }
 
 func Unmarshal(data []byte, v any) error {
-	return goccyjson.Unmarshal(data, v)
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = stdjson.Unmarshal(data, v) // fallback to stdlib
+			}
+		}()
+		err = goccyjson.Unmarshal(data, v)
+	}()
+	return err
 }
 
 func NewDecoder(r io.Reader) *goccyjson.Decoder {

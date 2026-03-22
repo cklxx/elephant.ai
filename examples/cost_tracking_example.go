@@ -89,7 +89,7 @@ func main() {
 		}
 
 		// Show calculated cost
-		inputCost, outputCost, totalCost := agentstorage.CalculateCost(
+		inputCost, outputCost, totalCost := cost.CalculateCost(
 			record.InputTokens,
 			record.OutputTokens,
 			record.Model,

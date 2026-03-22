@@ -8,6 +8,7 @@ package pulse
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -94,7 +95,7 @@ func (g *Generator) Generate(ctx context.Context) (*WeeklyPulse, error) {
 		return nil, fmt.Errorf("list failed: %w", err)
 	}
 	for _, t := range failed {
-		if inWindow(t, from) {
+		if taskfmt.InWindow(t, from) {
 			pulse.Blocked = append(pulse.Blocked, t)
 		}
 	}
@@ -105,7 +106,7 @@ func (g *Generator) Generate(ctx context.Context) (*WeeklyPulse, error) {
 		return nil, fmt.Errorf("list waiting_input: %w", err)
 	}
 	for _, t := range waiting {
-		if inWindow(t, from) {
+		if taskfmt.InWindow(t, from) {
 			pulse.Blocked = append(pulse.Blocked, t)
 		}
 	}
@@ -152,7 +153,7 @@ func (g *Generator) Generate(ctx context.Context) (*WeeklyPulse, error) {
 		pulse.AvgCompletionTime = totalDuration / time.Duration(completedWithTimes)
 	}
 
-	totalTerminal := len(pulse.Completed) + countFailed(pulse.Blocked)
+	totalTerminal := len(pulse.Completed) + taskfmt.CountFailed(pulse.Blocked)
 	if totalTerminal > 0 {
 		pulse.SuccessRate = float64(len(pulse.Completed)) / float64(totalTerminal)
 	}
@@ -175,7 +176,7 @@ func FormatMarkdown(p *WeeklyPulse) string {
 	}
 	b.WriteString(fmt.Sprintf("- **Tokens used:** %d\n", p.TotalTokens))
 	b.WriteString(fmt.Sprintf("- **Cost:** $%.4f\n", p.TotalCostUSD))
-	if p.TasksCompleted > 0 || countFailed(p.Blocked) > 0 {
+	if p.TasksCompleted > 0 || taskfmt.CountFailed(p.Blocked) > 0 {
 		b.WriteString(fmt.Sprintf("- **Success rate:** %.0f%%\n", p.SuccessRate*100))
 	}
 
@@ -246,26 +247,6 @@ func FormatMarkdown(p *WeeklyPulse) string {
 	return b.String()
 }
 
-// inWindow returns true if the task was updated or completed within the window.
-func inWindow(t *task.Task, from time.Time) bool {
-	if t.CompletedAt != nil && t.CompletedAt.After(from) {
-		return true
-	}
-	return t.UpdatedAt.After(from)
-}
-
-// countFailed returns the number of failed tasks in a slice.
-func countFailed(tasks []*task.Task) int {
-	n := 0
-	for _, t := range tasks {
-		if t.Status == task.StatusFailed {
-			n++
-		}
-	}
-	return n
-}
-
-
 func formatCommitCount(count int) string {
 	if count == 1 {
 		return "1 commit"
@@ -291,9 +272,12 @@ func (s *WeeklyPulseSpec) Generate(ctx context.Context) (*digest.Content, error)
 	if s.gitSrc != nil {
 		events, gErr := s.gitSrc.ListRecentEvents(ctx, pulse.From)
 		if gErr != nil {
-			return nil, fmt.Errorf("git metrics: %w", gErr)
+			// Best-effort: log and continue with empty git metrics.
+			log.Printf("pulse: git metrics fetch failed (best-effort): %v", gErr)
+			pulse.GitMetrics = &GitActivityMetrics{}
+		} else {
+			pulse.GitMetrics = summarizeGitActivity(events)
 		}
-		pulse.GitMetrics = summarizeGitActivity(events)
 	}
 	s.pulse = pulse
 	return &digest.Content{Title: "Weekly Pulse"}, nil

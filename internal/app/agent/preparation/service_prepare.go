@@ -383,11 +383,7 @@ func (s *ExecutionPreparationService) initLLMClient(prepareCtx context.Context, 
 	s.logger.Debug("Isolated LLM client obtained successfully")
 
 	client = s.costDecorator.Wrap(prepareCtx, pc.session.ID, client)
-	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
-	if !ok {
-		errs <- fmt.Errorf("failed to wrap LLM client with streaming support")
-		return
-	}
+	streaming := llm.EnsureStreamingClient(client)
 	pc.llmClient = client
 	pc.streamingClient = streaming
 	errs <- nil

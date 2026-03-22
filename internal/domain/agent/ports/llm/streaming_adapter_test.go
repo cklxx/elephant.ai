@@ -48,15 +48,16 @@ func TestEnsureStreamingClient_AlreadyStreaming(t *testing.T) {
 func TestEnsureStreamingClient_Wraps(t *testing.T) {
 	mc := &mockLLMClient{model: "gpt-3.5"}
 	result := EnsureStreamingClient(mc)
-	if _, ok := result.(StreamingLLMClient); !ok {
-		t.Error("expected StreamingLLMClient")
+	// result is already StreamingLLMClient by type, just verify non-nil
+	if result == nil {
+		t.Error("expected non-nil StreamingLLMClient")
 	}
 }
 
 func TestStreamingAdapter_Complete(t *testing.T) {
 	resp := &core.CompletionResponse{Content: "hello"}
 	mc := &mockLLMClient{model: "test", resp: resp}
-	adapter := EnsureStreamingClient(mc).(StreamingLLMClient)
+	adapter := EnsureStreamingClient(mc)
 
 	got, err := adapter.Complete(context.Background(), core.CompletionRequest{})
 	if err != nil {
@@ -70,7 +71,7 @@ func TestStreamingAdapter_Complete(t *testing.T) {
 func TestStreamingAdapter_Model(t *testing.T) {
 	mc := &mockLLMClient{model: "claude-3"}
 	adapter := EnsureStreamingClient(mc)
-	if adapter.(StreamingLLMClient).Model() != "claude-3" {
+	if adapter.Model() != "claude-3" {
 		t.Error("model mismatch")
 	}
 }
@@ -78,7 +79,7 @@ func TestStreamingAdapter_Model(t *testing.T) {
 func TestStreamingAdapter_StreamComplete_Fallback(t *testing.T) {
 	resp := &core.CompletionResponse{Content: "streamed content"}
 	mc := &mockLLMClient{model: "test", resp: resp}
-	adapter := EnsureStreamingClient(mc).(StreamingLLMClient)
+	adapter := EnsureStreamingClient(mc)
 
 	var deltas []core.ContentDelta
 	callbacks := core.CompletionStreamCallbacks{
@@ -107,7 +108,7 @@ func TestStreamingAdapter_StreamComplete_Fallback(t *testing.T) {
 
 func TestStreamingAdapter_StreamComplete_Error(t *testing.T) {
 	mc := &mockLLMClient{model: "test", err: errors.New("api error")}
-	adapter := EnsureStreamingClient(mc).(StreamingLLMClient)
+	adapter := EnsureStreamingClient(mc)
 
 	_, err := adapter.StreamComplete(context.Background(), core.CompletionRequest{}, core.CompletionStreamCallbacks{})
 	if err == nil || err.Error() != "api error" {
@@ -118,7 +119,7 @@ func TestStreamingAdapter_StreamComplete_Error(t *testing.T) {
 func TestStreamingAdapter_StreamComplete_NilCallback(t *testing.T) {
 	resp := &core.CompletionResponse{Content: "ok"}
 	mc := &mockLLMClient{model: "test", resp: resp}
-	adapter := EnsureStreamingClient(mc).(StreamingLLMClient)
+	adapter := EnsureStreamingClient(mc)
 
 	got, err := adapter.StreamComplete(context.Background(), core.CompletionRequest{}, core.CompletionStreamCallbacks{})
 	if err != nil {
@@ -132,7 +133,7 @@ func TestStreamingAdapter_StreamComplete_NilCallback(t *testing.T) {
 func TestStreamingAdapter_StreamComplete_EmptyContent(t *testing.T) {
 	resp := &core.CompletionResponse{Content: ""}
 	mc := &mockLLMClient{model: "test", resp: resp}
-	adapter := EnsureStreamingClient(mc).(StreamingLLMClient)
+	adapter := EnsureStreamingClient(mc)
 
 	var deltas []core.ContentDelta
 	callbacks := core.CompletionStreamCallbacks{

@@ -239,207 +239,23 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 	}
 }
 
-func TestToolPresetBlocking(t *testing.T) {
-	tests := []struct {
-		name      string
-		mode      ToolMode
-		preset    ToolPreset
-		toolName  string
-		wantAllow bool
-	}{
-		{
-			name:      "read-only allows file_read",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "file_read",
-			wantAllow: true,
-		},
-		{
-			name:      "read-only allows file_write",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "file_write",
-			wantAllow: true,
-		},
-		{
-			name:      "read-only allows bash",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "bash",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows file_write",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "file_write",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows bash",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "bash",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows shell_exec",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "shell_exec",
-			wantAllow: true,
-		},
-		{
-			name:      "full allows skills in cli mode",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetFull,
-			toolName:  "skills",
-			wantAllow: true,
-		},
-		{
-			name:      "full allows web_search in cli mode",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetFull,
-			toolName:  "web_search",
-			wantAllow: true,
-		},
-		{
-			name:      "full allows shell_exec in cli mode",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetFull,
-			toolName:  "shell_exec",
-			wantAllow: true,
-		},
-		{
-			name:      "full allows shell_exec in cli mode",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetFull,
-			toolName:  "shell_exec",
-			wantAllow: true,
-		},
-		{
-			name:      "read-only allows read_file",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "read_file",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows read_file",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "read_file",
-			wantAllow: true,
-		},
-		{
-			name:      "read-only allows plan",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "plan",
-			wantAllow: true,
-		},
-		{
-			name:      "read-only allows ask_user",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetReadOnly,
-			toolName:  "ask_user",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows plan",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "plan",
-			wantAllow: true,
-		},
-		{
-			name:      "safe allows ask_user",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSafe,
-			toolName:  "ask_user",
-			wantAllow: true,
-		},
-		{
-			name:      "web mode allows file_read",
-			mode:      ToolModeWeb,
-			preset:    ToolPresetFull,
-			toolName:  "file_read",
-			wantAllow: true,
-		},
-		{
-			name:      "web mode allows web_search",
-			mode:      ToolModeWeb,
-			preset:    ToolPresetFull,
-			toolName:  "web_search",
-			wantAllow: true,
-		},
-		{
-			name:      "web mode allows skills",
-			mode:      ToolModeWeb,
-			preset:    ToolPresetFull,
-			toolName:  "skills",
-			wantAllow: true,
-		},
-		{
-			name:      "architect allows web_search",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetArchitect,
-			toolName:  "web_search",
-			wantAllow: true,
-		},
-		{
-			name:      "architect allows plan in cli mode",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetArchitect,
-			toolName:  "plan",
-			wantAllow: true,
-		},
-		{
-			name:      "architect allows bash",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetArchitect,
-			toolName:  "bash",
-			wantAllow: true,
-		},
-		{
-			name:      "web mode architect allows plan",
-			mode:      ToolModeWeb,
-			preset:    ToolPresetArchitect,
-			toolName:  "plan",
-			wantAllow: true,
-		},
-		{
-			name:      "web mode architect allows file_read",
-			mode:      ToolModeWeb,
-			preset:    ToolPresetArchitect,
-			toolName:  "file_read",
-			wantAllow: true,
-		},
-	}
+func TestToolPresetAllowsAllTools(t *testing.T) {
+	// All presets now grant unrestricted access. Verify GetToolConfig
+	// succeeds for all valid mode+preset combinations.
+	modes := []ToolMode{ToolModeCLI, ToolModeWeb}
+	presets := []ToolPreset{ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config, err := GetToolConfig(tt.mode, tt.preset)
-			if err != nil {
-				t.Fatalf("GetToolConfig() error = %v", err)
-			}
-
-			// Check if tool is blocked
-			isBlocked := config.DeniedTools[tt.toolName]
-
-			// Check if tool is allowed (if AllowedTools is not nil)
-			isAllowed := false
-			if config.AllowedTools == nil {
-				// nil means allow all (unless denied)
-				isAllowed = !isBlocked
-			} else {
-				isAllowed = config.AllowedTools[tt.toolName]
-			}
-
-			if isAllowed != tt.wantAllow {
-				t.Errorf("Tool %s allowed = %v, want %v (preset: %s)", tt.toolName, isAllowed, tt.wantAllow, tt.preset)
-			}
-		})
+	for _, mode := range modes {
+		for _, preset := range presets {
+			t.Run(string(mode)+"/"+string(preset), func(t *testing.T) {
+				config, err := GetToolConfig(mode, preset)
+				if err != nil {
+					t.Fatalf("GetToolConfig() error = %v", err)
+				}
+				if config.Name == "" {
+					t.Error("expected non-empty config name")
+				}
+			})
+		}
 	}
 }
-

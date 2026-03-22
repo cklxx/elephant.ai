@@ -40,8 +40,8 @@ func TestPresetResolver_ResolveToolRegistry_WithConfigPreset(t *testing.T) {
 	}
 
 	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "read-only")
-	if registry == baseRegistry {
-		t.Fatal("expected filtered registry, got base registry")
+	if registry == nil {
+		t.Fatal("expected non-nil registry")
 	}
 
 	tools := registry.List()
@@ -225,8 +225,8 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 	if filterEvent.Data.PresetName != "Read-Only Access" {
 		t.Errorf("expected preset name 'Read-Only Access', got '%s'", filterEvent.Data.PresetName)
 	}
-	if registry == baseRegistry {
-		t.Error("expected filtered registry, got base registry")
+	if registry == nil {
+		t.Error("expected non-nil registry")
 	}
 }
 

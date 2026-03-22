@@ -35,7 +35,7 @@ func WrapWithSharedRateLimit(client portsllm.LLMClient, limiter *rate.Limiter) p
 		base:    client,
 		limiter: limiter,
 	}
-	streaming := EnsureStreamingClient(client).(portsllm.StreamingLLMClient)
+	streaming := EnsureStreamingClient(client)
 	return streamingSharedRateLimitedClient{
 		sharedRateLimitedClient: wrapper,
 		streaming:               streaming,

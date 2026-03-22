@@ -124,7 +124,11 @@ func (s *Scheduler) registerLeaderJob(ctx context.Context, def leaderJobDef) {
 
 	entryID, err := s.cron.AddFunc(schedule, func() {
 		s.logger.Info("%s triggered (schedule=%s)", label, schedule)
-		err := run(ctx)
+		// Use s.runCtx at execution time to avoid capturing a stale ctx.
+		s.mu.Lock()
+		execCtx := s.runCtx
+		s.mu.Unlock()
+		err := run(execCtx)
 		s.recordLeaderResult(name, err)
 		if err != nil {
 			s.logger.Warn("%s failed: %v", label, err)

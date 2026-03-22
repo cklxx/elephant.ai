@@ -103,7 +103,7 @@ func TestToolCallParsingClientAppliesToStreamingResponses(t *testing.T) {
 	}
 
 	client := WrapWithToolCallParsing(underlying, parser.New())
-	streaming := portsllm.EnsureStreamingClient(client).(portsllm.StreamingLLMClient)
+	streaming := portsllm.EnsureStreamingClient(client)
 
 	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{
 		Messages: []ports.Message{{Role: "user", Content: "hi"}},

@@ -34,7 +34,7 @@ func (b *containerBuilder) buildOKRGoalStore() *okrtools.GoalStore {
 	return okrtools.NewGoalStore(okrCfg)
 }
 
-func (b *containerBuilder) buildHookRuntime(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory, okrStore *okrtools.GoalStore) *corehook.HookRuntime {
+func (b *containerBuilder) buildHookRuntime(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory, okrStore *okrtools.GoalStore, queryTracker *memory.QueryTracker) *corehook.HookRuntime {
 	rt := corehook.NewHookRuntime()
 	if !b.config.Proactive.Enabled {
 		b.logger.Info("Non-memory proactive hooks disabled by config")
@@ -60,12 +60,7 @@ func (b *containerBuilder) buildHookRuntime(memoryEngine memory.Engine, llmFacto
 
 		// Register prediction hook (post-task next-session predictions).
 		if b.config.Proactive.Memory.Prediction.Enabled {
-			var tracker *memory.QueryTracker
-			memRoot := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
-			if memRoot != "" {
-				tracker = memory.NewQueryTracker(memRoot)
-			}
-			predHook := hooks.NewPredictionHook(memoryEngine, llmFactory, tracker, b.logger, hooks.PredictionConfig{
+			predHook := hooks.NewPredictionHook(memoryEngine, llmFactory, queryTracker, b.logger, hooks.PredictionConfig{
 				Enabled: true,
 				Profile: profile,
 			})
@@ -133,7 +128,14 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	}
 
 	okrStore := b.buildOKRGoalStore()
-	hookRuntime := b.buildHookRuntime(parent.MemoryEngine, parent.llmFactory, okrStore)
+	var altQueryTracker *memory.QueryTracker
+	if b.config.Proactive.Memory.Prediction.Enabled {
+		memRoot := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
+		if memRoot != "" {
+			altQueryTracker = memory.NewQueryTracker(memRoot)
+		}
+	}
+	hookRuntime := b.buildHookRuntime(parent.MemoryEngine, parent.llmFactory, okrStore, altQueryTracker)
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	credentialRefresher := buildCredentialRefresher()
 

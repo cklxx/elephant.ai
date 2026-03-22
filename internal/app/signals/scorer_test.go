@@ -104,7 +104,7 @@ func TestScorerScore(t *testing.T) {
 			client := &stubLLM{response: tt.llmResp, err: tt.llmErr}
 			scorer := NewScorer(client, tt.budget, func() time.Time { return now })
 			event := &SignalEvent{Content: tt.content}
-			_ = scorer.Score(context.Background(), event)
+			scorer.Score(context.Background(), event)
 			if event.Score != tt.wantScore {
 				t.Errorf("score = %d, want %d", event.Score, tt.wantScore)
 			}
@@ -122,14 +122,14 @@ func TestScorerBudgetReset(t *testing.T) {
 	scorer := NewScorer(client, 1, func() time.Time { return current })
 
 	event := &SignalEvent{Content: "please review"}
-	_ = scorer.Score(context.Background(), event)
+	scorer.Score(context.Background(), event)
 	if client.calls != 1 {
 		t.Fatalf("expected 1 call, got %d", client.calls)
 	}
 
 	// Second call within same hour: budget exhausted.
 	event2 := &SignalEvent{Content: "please check"}
-	_ = scorer.Score(context.Background(), event2)
+	scorer.Score(context.Background(), event2)
 	if client.calls != 1 {
 		t.Fatalf("expected still 1 call, got %d", client.calls)
 	}
@@ -137,7 +137,7 @@ func TestScorerBudgetReset(t *testing.T) {
 	// Advance past budget reset.
 	current = now.Add(2 * time.Hour)
 	event3 := &SignalEvent{Content: "please look at"}
-	_ = scorer.Score(context.Background(), event3)
+	scorer.Score(context.Background(), event3)
 	if client.calls != 2 {
 		t.Fatalf("expected 2 calls after reset, got %d", client.calls)
 	}

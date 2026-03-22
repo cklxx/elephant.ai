@@ -99,6 +99,10 @@ func (s *FileStore) GetSnapshot(ctx context.Context, sessionID string, turnID in
 	if ctx != nil && ctx.Err() != nil {
 		return Snapshot{}, ctx.Err()
 	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	path := filepath.Join(s.sessionDir(sessionID), s.filename(turnID))
 	data, err := os.ReadFile(path)
 	if err != nil {

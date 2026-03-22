@@ -9,7 +9,9 @@ import (
 )
 
 func (r *Registry) registerUITools(config Config) {
-	r.static["plan"] = ui.NewPlan(config.MemoryEngine)
+	if config.MemoryEngine != nil {
+		r.static["plan"] = ui.NewPlan(config.MemoryEngine)
+	}
 	r.static["ask_user"] = ui.NewAskUser()
 	r.static["context_checkpoint"] = ui.NewContextCheckpoint()
 }

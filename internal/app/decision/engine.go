@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/shared/logging"
 	"alex/internal/shared/utils/id"
 )
 
@@ -24,6 +25,7 @@ type Engine struct {
 	patterns       *PatternStore
 	autoActEnabled bool
 	auditLog       *AuditLog
+	logger         logging.Logger
 	nowFn          func() time.Time
 	mu             sync.RWMutex
 }
@@ -32,8 +34,13 @@ type Engine struct {
 func NewEngine(decisions *Store, patterns *PatternStore, auditLog *AuditLog, nowFn func() time.Time) *Engine {
 	return &Engine{
 		decisions: decisions, patterns: patterns,
-		auditLog: auditLog, nowFn: nowFn,
+		auditLog: auditLog, logger: logging.Nop(), nowFn: nowFn,
 	}
+}
+
+// SetLogger sets the engine's logger.
+func (e *Engine) SetLogger(l logging.Logger) {
+	e.logger = logging.OrNop(l)
 }
 
 // SetAutoAct enables or disables the auto-act feature flag.
@@ -122,7 +129,9 @@ func (e *Engine) updateMatchingPattern(d *Decision) {
 	p.SampleCount++
 	p.LastMatched = e.nowFn()
 	p.UpdatedAt = e.nowFn()
-	_ = e.patterns.Save(p)
+	if err := e.patterns.Save(p); err != nil {
+		e.logger.Error("failed to save pattern", "error", err)
+	}
 }
 
 func categoryFromTags(tags []string) string {

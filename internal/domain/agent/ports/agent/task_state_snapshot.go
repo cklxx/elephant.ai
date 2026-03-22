@@ -109,7 +109,7 @@ func cloneMessage(msg core.Message) core.Message {
 		cloned.ToolResults = CloneToolResults(msg.ToolResults)
 	}
 	if len(msg.Metadata) > 0 {
-		cloned.Metadata = core.CloneAnyMap(msg.Metadata)
+		cloned.Metadata = core.DeepCloneAnyMap(msg.Metadata)
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = core.CloneAttachmentMap(msg.Attachments)
@@ -125,7 +125,7 @@ func cloneToolCalls(calls []core.ToolCall) []core.ToolCall {
 	for i := range calls {
 		cloned[i] = calls[i]
 		if len(calls[i].Arguments) > 0 {
-			cloned[i].Arguments = core.CloneAnyMap(calls[i].Arguments)
+			cloned[i].Arguments = core.DeepCloneAnyMap(calls[i].Arguments)
 		}
 	}
 	return cloned
@@ -140,7 +140,7 @@ func CloneToolResults(results []core.ToolResult) []core.ToolResult {
 	for i := range results {
 		cloned[i] = results[i]
 		if len(results[i].Metadata) > 0 {
-			cloned[i].Metadata = core.CloneAnyMap(results[i].Metadata)
+			cloned[i].Metadata = core.DeepCloneAnyMap(results[i].Metadata)
 		}
 		if len(results[i].Attachments) > 0 {
 			cloned[i].Attachments = core.CloneAttachmentMap(results[i].Attachments)
@@ -206,43 +206,8 @@ func CloneFeedbackSignals(signals []FeedbackSignal) []FeedbackSignal {
 	return cloned
 }
 
-// CloneMapAny deep copies a map[string]any, recursively cloning nested values.
+// CloneMapAny deep copies a map[string]any. Delegates to the centralized
+// DeepCloneAnyMap in the ports package.
 func CloneMapAny(input map[string]any) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(input))
-	for key, value := range input {
-		cloned[key] = cloneWorldValue(value)
-	}
-	return cloned
-}
-
-func cloneWorldValue(value any) any {
-	switch v := value.(type) {
-	case map[string]any:
-		return CloneMapAny(v)
-	case []map[string]any:
-		if len(v) == 0 {
-			return nil
-		}
-		cloned := make([]map[string]any, len(v))
-		for i := range v {
-			cloned[i] = CloneMapAny(v[i])
-		}
-		return cloned
-	case []string:
-		return append([]string(nil), v...)
-	case []any:
-		if len(v) == 0 {
-			return nil
-		}
-		cloned := make([]any, len(v))
-		for i := range v {
-			cloned[i] = cloneWorldValue(v[i])
-		}
-		return cloned
-	default:
-		return v
-	}
+	return core.DeepCloneAnyMap(input)
 }

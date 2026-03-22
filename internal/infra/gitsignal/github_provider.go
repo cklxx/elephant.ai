@@ -203,7 +203,7 @@ func (g *GitHubProvider) apiGet(ctx context.Context, path string) ([]byte, error
 		return nil, fmt.Errorf("GitHub API %s: %d %s", path, resp.StatusCode, string(body))
 	}
 
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 }
 
 func (g *GitHubProvider) fetchRepoEvents(ctx context.Context, repo string, since time.Time) ([]signal.SignalEvent, error) {

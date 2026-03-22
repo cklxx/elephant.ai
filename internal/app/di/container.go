@@ -35,23 +35,33 @@ type LarkGateway interface {
 	InjectMessageSync(ctx context.Context, req lark.InjectSyncRequest) *lark.InjectSyncResponse
 }
 
-// Container holds all application dependencies
-type Container struct {
-	AgentCoordinator *agentcoordinator.AgentCoordinator
-	SessionStore     agentstorage.SessionStore
-	StateStore       sessionstate.Store
-	HistoryStore     sessionstate.Store
-	HistoryManager   agentstorage.HistoryManager
-	CostTracker      agentstorage.CostTracker
-	MemoryEngine     memory.Engine
-	CheckpointStore  react.CheckpointStore
-	TapeManager      *coretape.TapeManager
-	TaskStore        taskdomain.Store     // Unified durable task store (nil when unavailable)
-	DecisionStore    *decision.Store      // Team decision memory (nil when unavailable)
-	LarkGateway      LarkGateway
+// StorageResources groups persistence-related dependencies.
+type StorageResources struct {
+	SessionStore    agentstorage.SessionStore
+	StateStore      sessionstate.Store
+	HistoryStore    sessionstate.Store
+	HistoryManager  agentstorage.HistoryManager
+	CostTracker     agentstorage.CostTracker
+	CheckpointStore react.CheckpointStore
+	MemoryEngine    memory.Engine
+	TaskStore       taskdomain.Store // Unified durable task store (nil when unavailable)
+	DecisionStore   *decision.Store  // Team decision memory (nil when unavailable)
+}
+
+// Gateways groups external integration gateways.
+type Gateways struct {
+	LarkGateway       LarkGateway
 	LarkOAuth         *larkoauth.Service
 	GitSignalProvider signalports.GitSignalProvider
 	CalendarPort      calendar.CalendarPort
+}
+
+// Container holds all application dependencies
+type Container struct {
+	AgentCoordinator *agentcoordinator.AgentCoordinator
+	StorageResources
+	Gateways
+	TapeManager *coretape.TapeManager
 
 	// Drainables holds subsystems that support graceful drain.
 	Drainables []lifecycle.Drainable

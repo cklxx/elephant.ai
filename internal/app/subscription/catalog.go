@@ -138,26 +138,37 @@ func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *ht
 }
 
 func (s *CatalogService) Catalog(ctx context.Context) Catalog {
+	// Fast path: return cached data under lock.
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.ttl > 0 && time.Since(s.cachedAt) < s.ttl {
-		return s.cached
+		cached := s.cached
+		s.mu.Unlock()
+		return cached
 	}
+	// Read config under lock, then release before HTTP calls.
+	loadCreds := s.loadCreds
+	client := s.client
+	maxResp := s.maxResponseBytes
+	llamaResolver := s.llamaServerResolver
+	s.mu.Unlock()
 
-	creds := s.loadCreds()
-	providers := listProviders(ctx, creds, s.client, s.maxResponseBytes)
-	if s.llamaServerResolver != nil {
-		if target, ok := s.llamaServerResolver(ctx); ok {
-			if provider, ok := buildLlamaServerProvider(ctx, s.client, target, s.maxResponseBytes); ok {
+	// Perform HTTP calls outside the lock.
+	creds := loadCreds()
+	providers := listProviders(ctx, creds, client, maxResp)
+	if llamaResolver != nil {
+		if target, ok := llamaResolver(ctx); ok {
+			if provider, ok := buildLlamaServerProvider(ctx, client, target, maxResp); ok {
 				providers = append(providers, provider)
 			}
 		}
 	}
 	catalog := Catalog{Providers: providers}
 
+	// Update cache under lock.
+	s.mu.Lock()
 	s.cached = catalog
 	s.cachedAt = time.Now()
+	s.mu.Unlock()
 	return catalog
 }
 

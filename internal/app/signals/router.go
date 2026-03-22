@@ -75,7 +75,11 @@ func (r *Router) Route(_ context.Context, event *SignalEvent) AttentionRoute {
 	route := r.routeForScore(event.Score)
 	now := r.nowFn()
 
-	if route == RouteEscalate || route == RouteNotifyNow {
+	// Critical alerts must never be budget-suppressed.
+	if route == RouteEscalate {
+		return RouteEscalate
+	}
+	if route == RouteNotifyNow {
 		return r.applyBudget(event.ChatID, now, route)
 	}
 	if r.inQuietHours(now.Hour()) {
@@ -163,6 +167,18 @@ func (r *Router) applyBudget(chatID string, now time.Time, route AttentionRoute)
 		return RouteSuppress
 	}
 	b.timestamps = append(b.timestamps, now)
+
+	// Periodic eviction: if the budgets map grows beyond 1000 entries,
+	// sweep entries that haven't been updated in the last hour.
+	if len(r.budgets) > 1000 {
+		evictCutoff := now.Add(-time.Hour)
+		for id, cb := range r.budgets {
+			if len(cb.timestamps) == 0 || cb.timestamps[len(cb.timestamps)-1].Before(evictCutoff) {
+				delete(r.budgets, id)
+			}
+		}
+	}
+
 	return route
 }
 

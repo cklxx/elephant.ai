@@ -14,10 +14,11 @@ import (
 
 // DeviceFlowConfig holds settings for the RFC 8628 device authorization flow.
 type DeviceFlowConfig struct {
-	AppID     string
-	AppSecret string
-	Brand     string // "feishu" (default), "lark", or custom domain
-	Scopes    []string
+	AppID      string
+	AppSecret  string
+	Brand      string // "feishu" (default), "lark", or custom domain
+	Scopes     []string
+	HTTPClient *http.Client // optional; falls back to http.DefaultClient
 }
 
 // DeviceAuthResponse is the response from the device authorization endpoint.
@@ -45,6 +46,14 @@ var (
 	ErrDeviceFlowExpired  = errors.New("expired_token")
 	ErrDeviceFlowSlowDown = errors.New("slow_down")
 )
+
+// httpClient returns cfg.HTTPClient if set, otherwise http.DefaultClient.
+func (cfg *DeviceFlowConfig) httpClient() *http.Client {
+	if cfg.HTTPClient != nil {
+		return cfg.HTTPClient
+	}
+	return http.DefaultClient
+}
 
 // resolveEndpoints maps brand to device auth and token URLs.
 func resolveEndpoints(brand string) (deviceAuthURL, tokenURL string) {
@@ -99,7 +108,7 @@ func RequestDeviceAuthorization(ctx context.Context, cfg DeviceFlowConfig) (*Dev
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(cfg.AppID, cfg.AppSecret)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.httpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("device auth request failed: %w", err)
 	}
@@ -197,7 +206,7 @@ func pollOnce(ctx context.Context, cfg DeviceFlowConfig, tokenURL, deviceCode st
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(cfg.AppID, cfg.AppSecret)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.httpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("token poll request failed: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -54,6 +55,11 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEnt
 		return "", err
 	}
 	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return "", fmt.Errorf("flock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN) //nolint:errcheck
 
 	if _, err := f.WriteString(block.String()); err != nil {
 		return "", err

@@ -576,17 +576,14 @@ func TestGenerateAndSend_NotifierError(t *testing.T) {
 	}
 }
 
-func TestGenerateAndSend_GitMetricsError(t *testing.T) {
+func TestGenerateAndSend_GitMetricsError_BestEffort(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewService(store, &fakeNotifier{}, "lark", "test-chat")
 	svc.GitSignalSource = &fakeGitSignalProvider{err: context.Canceled}
 
 	err := svc.GenerateAndSend(context.Background())
-	if err == nil {
-		t.Fatal("expected GenerateAndSend to return git metrics error")
-	}
-	if !strings.Contains(err.Error(), "git metrics") {
-		t.Fatalf("error = %q, want wrapped git metrics error", err)
+	if err != nil {
+		t.Fatalf("expected GenerateAndSend to succeed with best-effort git metrics, got: %v", err)
 	}
 }
 

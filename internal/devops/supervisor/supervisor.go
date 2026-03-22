@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"syscall"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -521,11 +522,7 @@ func readFilePID(path string) int {
 
 // processAlive reports whether a process with the given PID is running.
 func processAlive(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(os.Signal(nil)) == nil
+	return syscall.Kill(pid, 0) == nil
 }
 
 func truncSHA(sha string) string {

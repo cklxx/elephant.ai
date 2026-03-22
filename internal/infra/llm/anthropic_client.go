@@ -419,7 +419,7 @@ func getFloat(m map[string]any, key string) float64 {
 }
 
 func (c *anthropicClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
-	c.usageCallback = callback
+	c.baseClient.SetUsageCallback(callback)
 }
 
 func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMessage, string) {
@@ -762,7 +762,12 @@ func isAnthropicOAuthToken(token string) bool {
 	if strings.HasPrefix(lower, "sk-ant-oat") {
 		return true
 	}
-	return !strings.HasPrefix(lower, "sk-")
+	// Check for JWT-style tokens (base64-encoded header containing two dots)
+	// or known OAuth prefixes. Avoid false positives for arbitrary non-sk- keys.
+	if strings.HasPrefix(lower, "eyj") && strings.Count(token, ".") == 2 {
+		return true
+	}
+	return false
 }
 
 func mergeAnthropicBetaValues(existing string, values ...string) string {

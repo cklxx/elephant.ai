@@ -64,7 +64,7 @@ func (stubUnifiedTaskStore) DeleteExpired(context.Context, time.Time) error { re
 func TestServerTaskStoreForContainer_UsesUnifiedAdapter(t *testing.T) {
 	t.Parallel()
 
-	taskStore, err := serverTaskStoreForContainer(&di.Container{TaskStore: stubUnifiedTaskStore{}})
+	taskStore, err := serverTaskStoreForContainer(&di.Container{StorageResources: di.StorageResources{TaskStore: stubUnifiedTaskStore{}}})
 	if err != nil {
 		t.Fatalf("serverTaskStoreForContainer() error = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestServerTaskStoreForContainer_ErrorsWithoutUnifiedStore(t *testing.T) {
 func TestLarkTaskStoreForContainer_UsesUnifiedAdapter(t *testing.T) {
 	t.Parallel()
 
-	taskStore, err := larkTaskStoreForContainer(&di.Container{TaskStore: stubUnifiedTaskStore{}})
+	taskStore, err := larkTaskStoreForContainer(&di.Container{StorageResources: di.StorageResources{TaskStore: stubUnifiedTaskStore{}}})
 	if err != nil {
 		t.Fatalf("larkTaskStoreForContainer() error = %v", err)
 	}

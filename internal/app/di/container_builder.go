@@ -83,10 +83,12 @@ func (b *containerBuilder) Build() (*Container, error) {
 	contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
 	predCfg := b.config.Proactive.Memory.Prediction
 	contextOptions = append(contextOptions, ctxmgr.WithPredictionConfig(predCfg))
+	var queryTracker *memory.QueryTracker
 	if predCfg.Enabled {
 		memRoot := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 		if memRoot != "" {
-			contextOptions = append(contextOptions, ctxmgr.WithQueryTracker(memory.NewQueryTracker(memRoot)))
+			queryTracker = memory.NewQueryTracker(memRoot)
+			contextOptions = append(contextOptions, ctxmgr.WithQueryTracker(queryTracker))
 		}
 	}
 	if tapeReader := b.buildTapeMessageReader(); tapeReader != nil {
@@ -113,7 +115,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 
 	okrStore := b.buildOKRGoalStore()
-	hookRuntime := b.buildHookRuntime(memoryEngine, llmFactory, okrStore)
+	hookRuntime := b.buildHookRuntime(memoryEngine, llmFactory, okrStore, queryTracker)
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	checkpointStore := b.buildCheckpointStore()
 	credentialRefresher := buildCredentialRefresher()
@@ -143,20 +145,22 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	container := &Container{
 		AgentCoordinator: coordinator,
-		SessionStore:     resources.sessionStore,
-		StateStore:       resources.stateStore,
-		HistoryStore:     resources.historyStore,
-		HistoryManager:   historyMgr,
-		CostTracker:      costTracker,
-		MemoryEngine:     memoryEngine,
-		CheckpointStore:  checkpointStore,
-		TapeManager:      tapeMgr,
-		TaskStore:        taskStore,
-		DecisionStore:    decisionStore,
-		config:           b.config,
-		toolRegistry:     toolRegistry,
-		llmFactory:       llmFactory,
-		bgCancel:         bgCancel,
+		StorageResources: StorageResources{
+			SessionStore:    resources.sessionStore,
+			StateStore:      resources.stateStore,
+			HistoryStore:    resources.historyStore,
+			HistoryManager:  historyMgr,
+			CostTracker:     costTracker,
+			MemoryEngine:    memoryEngine,
+			CheckpointStore: checkpointStore,
+			TaskStore:       taskStore,
+			DecisionStore:   decisionStore,
+		},
+		TapeManager:  tapeMgr,
+		config:       b.config,
+		toolRegistry: toolRegistry,
+		llmFactory:   llmFactory,
+		bgCancel:     bgCancel,
 	}
 	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
 		container.Drainables = append(container.Drainables, drainable)

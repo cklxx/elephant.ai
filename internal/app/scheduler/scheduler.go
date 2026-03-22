@@ -317,13 +317,11 @@ func (s *Scheduler) registerTriggerLocked(ctx context.Context, trigger Trigger) 
 // syncOKRTriggers scans OKR goals and registers/prunes triggers.
 func (s *Scheduler) syncOKRTriggers() {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx := s.runCtx
-	s.mu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.syncOKRTriggersLocked(ctx)
 }
 

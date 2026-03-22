@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	coreerrors "alex/internal/core/errors"
@@ -65,7 +66,11 @@ type CircuitBreaker struct {
 	successCount    int
 	lastFailureTime time.Time
 	lastStateChange time.Time
+
+	halfOpenInFlight atomic.Int32 // tracks concurrent probe requests in half-open state
 }
+
+const maxHalfOpenInFlight = 2
 
 // NewCircuitBreaker creates a new circuit breaker
 func NewCircuitBreaker(name string, config CircuitBreakerConfig) *CircuitBreaker {
@@ -153,7 +158,15 @@ func (cb *CircuitBreaker) beforeRequest() error {
 		)
 
 	case StateHalfOpen:
-		// Allow limited requests in half-open state
+		// Allow limited concurrent probe requests in half-open state
+		if cb.halfOpenInFlight.Load() >= maxHalfOpenInFlight {
+			return coreerrors.NewDegradedError(
+				fmt.Errorf("circuit breaker half-open probe limit reached for %s", cb.name),
+				fmt.Sprintf("Service '%s' is recovering; too many concurrent probe requests.", cb.name),
+				"",
+			)
+		}
+		cb.halfOpenInFlight.Add(1)
 		return nil
 
 	default:
@@ -165,6 +178,11 @@ func (cb *CircuitBreaker) beforeRequest() error {
 func (cb *CircuitBreaker) afterRequest(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+
+	// Decrement half-open in-flight counter if we were in half-open state
+	if cb.state == StateHalfOpen {
+		cb.halfOpenInFlight.Add(-1)
+	}
 
 	if err == nil {
 		// Success

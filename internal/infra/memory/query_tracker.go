@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // QueryCategory classifies a user query for distribution tracking.
@@ -43,6 +44,7 @@ type QueryDistribution struct {
 // QueryTracker classifies queries and maintains a rolling distribution.
 type QueryTracker struct {
 	rootDir string
+	mu      sync.Mutex
 }
 
 // NewQueryTracker creates a tracker rooted at the given memory directory.
@@ -72,6 +74,9 @@ func (t *QueryTracker) Classify(query string) QueryCategory {
 
 // Record increments the count for the given category.
 func (t *QueryTracker) Record(_ context.Context, _ string, category QueryCategory) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	dist, err := t.load()
 	if err != nil {
 		dist = QueryDistribution{Counts: make(map[QueryCategory]int)}

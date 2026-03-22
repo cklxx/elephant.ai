@@ -1,12 +1,14 @@
 //go:build integration
 
-package storage
+package storage_test
 
 import (
 	"math"
 	"testing"
 	"time"
 
+	"alex/internal/app/agent/cost"
+	"alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/modelregistry"
 )
 
@@ -19,12 +21,12 @@ func waitForCostRegistry(t *testing.T) {
 
 // registryHasPricing returns true if the model is in the registry WITH valid
 // pricing data (InputPer1M > 0). Models missing pricing data should be skipped.
-func registryHasPricing(modelID string) (ModelPricing, bool) {
+func registryHasPricing(modelID string) (storage.ModelPricing, bool) {
 	info, ok := modelregistry.Lookup(modelID)
 	if !ok || info.InputPer1M <= 0 {
-		return ModelPricing{}, false
+		return storage.ModelPricing{}, false
 	}
-	return ModelPricing{
+	return storage.ModelPricing{
 		InputPer1K:  info.InputPer1M / 1000.0,
 		OutputPer1K: info.OutputPer1M / 1000.0,
 	}, true
@@ -78,7 +80,7 @@ func TestGetModelPricing_RealRegistry(t *testing.T) {
 		}
 		anyHit = true
 
-		pricing := GetModelPricing(modelID)
+		pricing := cost.GetModelPricing(modelID)
 		t.Logf("HIT   %-45s input=$%.6f/1K  output=$%.6f/1K", modelID, pricing.InputPer1K, pricing.OutputPer1K)
 
 		// Registry-sourced pricing must match what we fetched directly.
@@ -136,7 +138,7 @@ func TestCalculateCost_RealRegistry(t *testing.T) {
 	const inputTokens = 10_000
 	const outputTokens = 2_000
 
-	inputCost, outputCost, totalCost := CalculateCost(inputTokens, outputTokens, model)
+	inputCost, outputCost, totalCost := cost.CalculateCost(inputTokens, outputTokens, model)
 
 	t.Logf("CalculateCost(%q, %d, %d): input=$%.6f  output=$%.6f  total=$%.6f",
 		model, inputTokens, outputTokens, inputCost, outputCost, totalCost)
@@ -171,7 +173,7 @@ func TestGetModelPricing_RegistryOverridesStaticTable(t *testing.T) {
 		t.Skipf("model %q not in registry with pricing — cannot verify override", model)
 	}
 
-	pricing := GetModelPricing(model)
+	pricing := cost.GetModelPricing(model)
 	t.Logf("GetModelPricing(%q): input=$%.6f/1K  output=$%.6f/1K", model, pricing.InputPer1K, pricing.OutputPer1K)
 	t.Logf("Registry direct:      input=$%.6f/1K  output=$%.6f/1K", registryPricing.InputPer1K, registryPricing.OutputPer1K)
 
@@ -191,7 +193,7 @@ func TestGetModelPricing_UnknownModelFallback_RealRegistry(t *testing.T) {
 	waitForCostRegistry(t)
 
 	const model = "definitely-not-a-real-model-xyz-9999"
-	pricing := GetModelPricing(model)
+	pricing := cost.GetModelPricing(model)
 	t.Logf("GetModelPricing(unknown): input=$%.6f/1K  output=$%.6f/1K", pricing.InputPer1K, pricing.OutputPer1K)
 
 	// Must use the default fallback {0.001, 0.002}.

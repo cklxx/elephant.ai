@@ -39,8 +39,8 @@ type LLMSettings struct {
 	LLMProvider              string   `json:"llm_provider" yaml:"llm_provider"`
 	LLMModel                 string   `json:"llm_model" yaml:"llm_model"`
 	LLMVisionModel           string   `json:"llm_vision_model" yaml:"llm_vision_model"`
-	APIKey                   string   `json:"api_key" yaml:"api_key"`
-	ArkAPIKey                string   `json:"ark_api_key" yaml:"ark_api_key"`
+	APIKey                   string   `json:"-" yaml:"api_key"`
+	ArkAPIKey                string   `json:"-" yaml:"ark_api_key"`
 	BaseURL                  string   `json:"base_url" yaml:"base_url"`
 	MaxTokens                int      `json:"max_tokens" yaml:"max_tokens"`
 	LLMCacheSize             int      `json:"llm_cache_size" yaml:"llm_cache_size"`
@@ -62,8 +62,8 @@ type RateLimitSettings struct {
 
 // IntegrationKeys groups third-party API keys.
 type IntegrationKeys struct {
-	TavilyAPIKey    string `json:"tavily_api_key" yaml:"tavily_api_key"`
-	MoltbookAPIKey  string `json:"moltbook_api_key" yaml:"moltbook_api_key"`
+	TavilyAPIKey    string `json:"-" yaml:"tavily_api_key"`
+	MoltbookAPIKey  string `json:"-" yaml:"moltbook_api_key"`
 	MoltbookBaseURL string `json:"moltbook_base_url" yaml:"moltbook_base_url"`
 }
 

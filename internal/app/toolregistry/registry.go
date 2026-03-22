@@ -79,10 +79,6 @@ func NewRegistry(config Config) (*Registry, error) {
 		SLACollector: config.SLACollector,
 	}
 
-	if config.MemoryEngine == nil {
-		return nil, fmt.Errorf("memory engine is required")
-	}
-
 	r.registerBuiltins(config)
 
 	return r, nil

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 )
@@ -21,7 +22,8 @@ func BearerAuthMiddleware(token string) func(http.Handler) http.Handler {
 				}
 			}
 
-			if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != token {
+			tokenBytes := []byte(strings.TrimPrefix(auth, "Bearer "))
+			if !strings.HasPrefix(auth, "Bearer ") || subtle.ConstantTimeCompare(tokenBytes, []byte(token)) != 1 {
 				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}

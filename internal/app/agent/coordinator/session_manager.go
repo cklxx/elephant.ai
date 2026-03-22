@@ -210,14 +210,22 @@ func (c *AgentCoordinator) sessionSaveLoop() {
 		<-timer.C
 		c.flushPendingSessionSave(context.Background())
 
+		// Atomically check whether new work arrived and exit if idle.
+		// CAS(true→false) and the nil-check happen in one atomic step,
+		// so a concurrent Store into pendingSessionSave followed by
+		// ensureSessionSaveLoop cannot slip through unnoticed.
 		if c.pendingSessionSave.Load() != nil {
 			continue
 		}
-
+		// Mark loop inactive. If a new save is enqueued between the Load
+		// above and the CAS here, ensureSessionSaveLoop will restart us.
 		c.sessionSaveActive.Store(false)
-		if c.pendingSessionSave.Load() == nil || !c.sessionSaveActive.CompareAndSwap(false, true) {
-			return
+		// Double-check: if work arrived after we read nil but before we
+		// marked inactive, reclaim ownership and continue.
+		if c.pendingSessionSave.Load() != nil && c.sessionSaveActive.CompareAndSwap(false, true) {
+			continue
 		}
+		return
 	}
 }
 

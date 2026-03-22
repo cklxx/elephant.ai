@@ -79,7 +79,7 @@ func (g *Generator) Generate(ctx context.Context) (*DailySummary, error) {
 		return nil, fmt.Errorf("list failed: %w", err)
 	}
 	for _, t := range failed {
-		if inWindow(t, from) {
+		if taskfmt.InWindow(t, from) {
 			s.Blocked = append(s.Blocked, t)
 		}
 	}
@@ -90,7 +90,7 @@ func (g *Generator) Generate(ctx context.Context) (*DailySummary, error) {
 		return nil, fmt.Errorf("list waiting_input: %w", err)
 	}
 	for _, t := range waiting {
-		if inWindow(t, from) {
+		if taskfmt.InWindow(t, from) {
 			s.Blocked = append(s.Blocked, t)
 		}
 	}
@@ -107,13 +107,22 @@ func (g *Generator) Generate(ctx context.Context) (*DailySummary, error) {
 	}
 
 	// Identify new tasks: created within the window across all statuses.
-	allTasks, _, err := g.store.List(ctx, 1000, 0)
-	if err != nil {
-		return nil, fmt.Errorf("list all: %w", err)
-	}
-	for _, t := range allTasks {
-		if t.CreatedAt.After(from) {
-			s.New = append(s.New, t)
+	// Paginate to avoid truncation with large task stores.
+	const pageSize = 500
+	offset := 0
+	for {
+		page, total, err := g.store.List(ctx, pageSize, offset)
+		if err != nil {
+			return nil, fmt.Errorf("list all (offset=%d): %w", offset, err)
+		}
+		for _, t := range page {
+			if t.CreatedAt.After(from) {
+				s.New = append(s.New, t)
+			}
+		}
+		offset += len(page)
+		if len(page) < pageSize || offset >= total {
+			break
 		}
 	}
 
@@ -123,7 +132,7 @@ func (g *Generator) Generate(ctx context.Context) (*DailySummary, error) {
 	})
 
 	// Compute completion rate.
-	totalFailed := countFailed(s.Blocked)
+	totalFailed := taskfmt.CountFailed(s.Blocked)
 	totalTerminal := len(s.Completed) + totalFailed
 	if totalTerminal > 0 {
 		s.CompletionRate = float64(len(s.Completed)) / float64(totalTerminal)
@@ -187,7 +196,7 @@ func FormatMarkdown(s *DailySummary) string {
 
 	// Metrics
 	b.WriteString("\n## Metrics\n\n")
-	if len(s.Completed) > 0 || countFailed(s.Blocked) > 0 {
+	if len(s.Completed) > 0 || taskfmt.CountFailed(s.Blocked) > 0 {
 		b.WriteString(fmt.Sprintf("- **Completion rate:** %.0f%%\n", s.CompletionRate*100))
 	} else {
 		b.WriteString("- **Completion rate:** N/A\n")
@@ -273,22 +282,4 @@ func (svc *Service) GenerateAndSend(ctx context.Context) error {
 	return svc.digestSvc.Run(ctx, svc.spec)
 }
 
-// inWindow returns true if the task was updated or completed within the window.
-func inWindow(t *task.Task, from time.Time) bool {
-	if t.CompletedAt != nil && t.CompletedAt.After(from) {
-		return true
-	}
-	return t.UpdatedAt.After(from)
-}
-
-// countFailed returns the number of failed tasks in a slice.
-func countFailed(tasks []*task.Task) int {
-	n := 0
-	for _, t := range tasks {
-		if t.Status == task.StatusFailed {
-			n++
-		}
-	}
-	return n
-}
 

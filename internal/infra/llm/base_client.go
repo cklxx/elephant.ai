@@ -22,13 +22,14 @@ import (
 type baseClient struct {
 	model         string
 	apiKey        string
-	apiKeyMu      sync.RWMutex
-	baseURL       string
-	httpClient    *http.Client
-	logger        logging.Logger
-	headers       map[string]string
-	maxRetries    int
-	usageCallback func(usage ports.TokenUsage, model string, provider string)
+	apiKeyMu        sync.RWMutex
+	baseURL         string
+	httpClient      *http.Client
+	logger          logging.Logger
+	headers         map[string]string
+	maxRetries      int
+	usageCallback   func(usage ports.TokenUsage, model string, provider string)
+	usageCallbackMu sync.RWMutex
 }
 
 // apiKeyUpdatable is implemented by LLM clients that support hot-swapping
@@ -168,9 +169,19 @@ func (c *baseClient) logResponseSummary(prefix string, result *ports.CompletionR
 	c.logger.Debug("%s==================", prefix)
 }
 
+// SetUsageCallback atomically sets the usage callback for cost tracking.
+func (c *baseClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
+	c.usageCallbackMu.Lock()
+	defer c.usageCallbackMu.Unlock()
+	c.usageCallback = callback
+}
+
 // fireUsageCallback invokes the usage callback if configured.
 func (c *baseClient) fireUsageCallback(usage ports.TokenUsage, provider string) {
-	if c.usageCallback != nil {
-		c.usageCallback(usage, c.model, provider)
+	c.usageCallbackMu.RLock()
+	cb := c.usageCallback
+	c.usageCallbackMu.RUnlock()
+	if cb != nil {
+		cb(usage, c.model, provider)
 	}
 }

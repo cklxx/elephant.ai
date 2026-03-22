@@ -3,7 +3,7 @@ package budget
 import (
 	"sync"
 
-	"alex/internal/domain/agent/ports/storage"
+	"alex/internal/app/agent/cost"
 )
 
 // BudgetState represents the current state of a session's token budget.
@@ -303,7 +303,7 @@ func (m *Manager) suggestDowngradeLocked(currentModel string) (string, bool) {
 // estimateCost delegates to storage.GetModelPricing for accurate per-model pricing.
 // The tiers parameter is kept for call-site compatibility but is unused.
 func estimateCost(inputTokens, outputTokens int, model string, _ []ModelTier) float64 {
-	pricing := storage.GetModelPricing(model)
+	pricing := cost.GetModelPricing(model)
 	return float64(inputTokens)/1000.0*pricing.InputPer1K +
 		float64(outputTokens)/1000.0*pricing.OutputPer1K
 }
