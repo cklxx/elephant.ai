@@ -52,7 +52,7 @@ func (g *Gateway) buildDispatchWorkerTool() ports.ToolDefinition {
 				},
 				"ack": {
 					Type:        "string",
-					Description: "Short acknowledgement reply to show the user (4-8 chars, e.g. '收到' / 'on it').",
+					Description: "One-sentence reply shown to the user describing what you're about to do. Be specific about the action, not generic. E.g. '正在检查 kaku panel 状态' / '搜索最新 agent 记忆论文' / 'checking kaku panel status'. Max 20 chars in Chinese, 30 chars in English. No period at end.",
 				},
 			},
 			Required: []string{"task", "ack"},
@@ -72,7 +72,7 @@ var stopWorkerTool = ports.ToolDefinition{
 			},
 			"ack": {
 				Type:        "string",
-				Description: "Short acknowledgement reply to show the user (e.g. '已停' / 'stopped').",
+				Description: "One-sentence reply shown to the user describing the action. E.g. '正在停止任务 #1' / 'stopping all tasks'. Max 20 chars in Chinese, 30 chars in English. No period at end.",
 			},
 		},
 		Required: []string{"ack"},
@@ -101,7 +101,8 @@ Pick the right action:
 - manage_notice: user wants to bind/check/clear notification group.
 
 Every tool call MUST include an "ack" parameter — this is the reply shown to the user.
-- dispatch_worker / stop_worker: short ack (4-8 chars).
+- dispatch_worker: one sentence describing the specific action being taken (e.g. '正在检查 kaku panel 状态' / '搜索最新 agent 记忆论文'). NOT a generic '收到'.
+- stop_worker: one sentence describing what's being stopped (e.g. '正在停止 #1 任务').
 - query_tasks / query_usage / manage_notice: narrated summary as ack.
 When a skill matches, include its name in the dispatch task.
 
