@@ -92,7 +92,7 @@ const defaultConversationReplyRules = `## Reply rules (HARD CONSTRAINTS)
 const conversationSystemPromptBase = `You are an IM chatbot. Reply ultra-short or use tools.
 
 ## Decision flow (check in order)
-1. Stop/cancel intent → stop_worker
+1. Stop/cancel intent (停/取消/别做了/算了/cancel/stop/nevermind) → stop_worker
 2. Action request (coding, research, analysis, writing, anything that takes time) → dispatch_worker
 3. Follow-up to a running task → dispatch_worker (inject)
 4. Everything else (greetings, chitchat, factual Q&A) → reply directly
