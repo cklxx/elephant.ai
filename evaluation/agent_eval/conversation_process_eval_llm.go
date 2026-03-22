@@ -15,13 +15,16 @@ import (
 func newConversationEvalLLMClient(t *testing.T) portsllm.LLMClient {
 	t.Helper()
 
-	// Priority: EVAL_* overrides > LLM_API_KEY (Ark) > OPENAI_API_KEY > ANTHROPIC_API_KEY
+	// Priority: EVAL_* overrides > CLAUDE_CODE_OAUTH_TOKEN > LLM_API_KEY > OPENAI_API_KEY > ANTHROPIC_API_KEY
 	provider := os.Getenv("EVAL_PROVIDER")
 	model := os.Getenv("EVAL_MODEL")
 	apiKey := os.Getenv("EVAL_API_KEY")
 	baseURL := os.Getenv("EVAL_BASE_URL")
 
-	// Fallback to production config from configs/config.yaml defaults.
+	// Fallback chain.
+	if apiKey == "" {
+		apiKey = os.Getenv("CLAUDE_CODE_OAUTH_TOKEN")
+	}
 	if apiKey == "" {
 		apiKey = os.Getenv("LLM_API_KEY")
 	}
@@ -32,14 +35,15 @@ func newConversationEvalLLMClient(t *testing.T) portsllm.LLMClient {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 	if apiKey == "" {
-		t.Skip("no API key; set EVAL_API_KEY, LLM_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY")
+		t.Skip("no API key; set EVAL_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or OPENAI_API_KEY")
 	}
 
-	// Auto-detect provider from key format.
+	// Auto-detect provider from key format / source.
+	isClaudeOAuth := apiKey == os.Getenv("CLAUDE_CODE_OAUTH_TOKEN") && apiKey != ""
 	if provider == "" {
 		if strings.HasPrefix(apiKey, "sk-kimi-") {
 			provider = "kimi"
-		} else if strings.HasPrefix(apiKey, "sk-ant-") || os.Getenv("ANTHROPIC_API_KEY") == apiKey {
+		} else if strings.HasPrefix(apiKey, "sk-ant-") || isClaudeOAuth || os.Getenv("ANTHROPIC_API_KEY") == apiKey {
 			provider = "anthropic"
 		} else {
 			provider = "openai"
@@ -50,7 +54,7 @@ func newConversationEvalLLMClient(t *testing.T) portsllm.LLMClient {
 		case "kimi":
 			model = "kimi-k2-0711-preview"
 		case "anthropic":
-			model = "claude-sonnet-4-20250514"
+			model = "claude-haiku-4-5-20251001" // fast + cheap for eval
 		default:
 			model = "gpt-4o-mini"
 		}

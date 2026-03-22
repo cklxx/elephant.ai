@@ -22,6 +22,7 @@ type ConversationScenario struct {
 	Category      string   `yaml:"category"`
 	Intent        string   `yaml:"intent"`
 	ExpectedTools []string `yaml:"expected_tools"`
+	WorkerStatus  string   `yaml:"worker_status,omitempty"` // custom worker status; default "all idle"
 }
 
 // ConversationDataset holds the full scenario set.
@@ -150,7 +151,11 @@ func evalOneScenario(
 		ExpectedTools: sc.ExpectedTools,
 	}
 
-	userMsg := fmt.Sprintf("Worker status: all idle\n\nUser message: %s", sc.Intent)
+	workerStatus := sc.WorkerStatus
+	if workerStatus == "" {
+		workerStatus = "all idle"
+	}
+	userMsg := fmt.Sprintf("Worker status: %s\n\nUser message: %s", workerStatus, sc.Intent)
 
 	start := time.Now()
 	resp, err := client.Complete(ctx, ports.CompletionRequest{

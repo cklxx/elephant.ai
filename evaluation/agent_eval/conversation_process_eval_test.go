@@ -180,8 +180,8 @@ Cross-task: include "#N" in task description to reference task N's result.
 	return base + "\n\nCurrent date: " + time.Now().Format("2006-01-02") + " (Asia/Shanghai)"
 }
 
-// buildPromptVariant_ExampleDriven uses few-shot examples instead of rules
-// for the decision flow.
+// buildPromptVariant_ExampleDriven uses the previous experiment winner (more
+// examples with ack format shown). Tests whether showing ack samples helps.
 func buildPromptVariant_ExampleDriven() string {
 	replyRules := `## Reply rules (HARD CONSTRAINTS)
 - 中文: ≤12字, 禁句号, 省略主语/我, 口语化
@@ -282,14 +282,21 @@ func buildEvalConversationSystemPrompt() string {
 
 	base := `You are an IM chatbot. Reply ultra-short or use tools.
 
-## Decision flow (check in order)
+## Decision examples
+- "你好" → reply directly
+- "重构 auth 模块" → dispatch_worker
+- "帮我看看为什么 CI 挂了" → dispatch_worker
+- "停" / "cancel that" / "算了不用了" / "停掉现在的" → stop_worker
+- "用 PostgreSQL 不要 MySQL" → dispatch_worker (inject follow-up)
+- "lint" → dispatch_worker
+
+## Decision rules
 1. Stop/cancel intent (停/取消/别做了/算了/cancel/stop/nevermind) → stop_worker
-2. Action request (coding, research, analysis, writing, anything that takes time) → dispatch_worker
-3. Follow-up to a running task → dispatch_worker (inject)
-4. Everything else (greetings, chitchat, factual Q&A) → reply directly
+2. Action request (anything that takes time) → dispatch_worker
+3. Follow-up to running task → dispatch_worker (inject)
+4. Everything else → reply directly
 
 Every tool call MUST include an "ack" parameter — the reply shown to the user.
-When a skill matches, include its name in the dispatch task.
 Cross-task: include "#N" in task description to reference task N's result.
 
 ` + replyRules + `

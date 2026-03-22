@@ -80,7 +80,7 @@ scenarios:
 
   - id: "dispatch-implicit-action"
     category: "dispatch"
-    intent: "把这段代码改成用 context 传递"
+    intent: "把 auth 模块改成用 context 传递 token"
     expected_tools: ["dispatch_worker"]
 
   - id: "dispatch-with-skill-match"
@@ -100,16 +100,19 @@ scenarios:
     category: "dispatch_inject"
     intent: "用 PostgreSQL 不要用 MySQL"
     expected_tools: ["dispatch_worker"]
+    worker_status: "#1 running (重构 auth 模块, 45s)"
 
   - id: "dispatch-inject-correction"
     category: "dispatch_inject"
-    intent: "等一下，先别提交，我还要改点东西"
+    intent: "对了，数据库用 PostgreSQL 不要用 SQLite"
     expected_tools: ["dispatch_worker"]
+    worker_status: "#1 running (搭建后端服务, 30s)"
 
   - id: "dispatch-cross-task-ref"
     category: "dispatch_inject"
     intent: "用 #1 的结果继续做"
     expected_tools: ["dispatch_worker"]
+    worker_status: "#1 completed (分析数据)"
 
   # -----------------------------------------------------------------------
   # stop_worker: cancel/abort
@@ -128,11 +131,13 @@ scenarios:
     category: "stop"
     intent: "cancel that"
     expected_tools: ["stop_worker"]
+    worker_status: "#1 running (research papers, 20s)"
 
   - id: "stop-specific-task"
     category: "stop"
     intent: "停掉 #1"
     expected_tools: ["stop_worker"]
+    worker_status: "#1 running (重构 auth 模块, 60s)"
 
   - id: "stop-dont-do-it"
     category: "stop"
