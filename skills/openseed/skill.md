@@ -4,9 +4,15 @@ description: When the user wants to research academic papers → search ArXiv, e
 triggers:
   intent_patterns:
     - "openseed|论文|paper|arxiv|学术|research.*paper|文献|调研.*论文|survey"
+    - "最新.*研究|latest.*research|state.*of.*art|SOTA"
+    - "引用.*论文|cite.*paper|参考文献|bibliography|reference"
+    - "读.*论文|read.*paper|论文.*摘要|abstract|论文.*总结"
+    - "对比.*论文|compare.*papers|文献.*综述|literature.*review"
+    - "实验.*复现|reproduce|代码.*实现|implementation"
+    - "这篇.*论文|this.*paper|帮我找.*paper|search.*paper"
   context_signals:
-    keywords: ["openseed", "paper", "arxiv", "论文", "文献", "survey", "research"]
-  confidence_threshold: 0.7
+    keywords: ["openseed", "paper", "arxiv", "论文", "文献", "survey", "research", "SOTA", "引用", "摘要", "综述", "复现", "实验"]
+  confidence_threshold: 0.65
 priority: 9
 requires_tools: [bash]
 max_tokens: 200

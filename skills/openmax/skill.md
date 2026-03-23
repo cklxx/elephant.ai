@@ -4,8 +4,13 @@ description: When a task can be parallelized (bulk code review, multi-module ref
 triggers:
   intent_patterns:
     - "openmax|parallel review|并行|多worker|多任务|code review|批量"
+    - "同时.*处理|handle.*simultaneously|一起.*跑|run.*parallel"
+    - "批量.*审查|bulk.*review|全部.*模块|all.*modules"
+    - "拆分.*任务|split.*task|分.*子任务|break.*subtasks"
+    - "多个.*文件.*同时|multiple.*files.*parallel|加速.*review"
+    - "worktree|隔离.*执行|isolated.*execution"
   context_signals:
-    keywords: ["openmax", "parallel", "review", "并行", "worktree"]
+    keywords: ["openmax", "parallel", "review", "并行", "worktree", "批量", "同时", "拆分", "隔离", "bulk", "concurrent"]
   confidence_threshold: 0.7
 priority: 9
 requires_tools: [bash]
