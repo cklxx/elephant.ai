@@ -12,6 +12,7 @@ actions: open, navigate, snapshot, click, type, screenshot, tabs, tab_select,
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
 import sys
 
@@ -29,10 +30,43 @@ load_repo_dotenv(__file__)
 _TIMEOUT = int(os.environ.get("BROWSER_SKILL_TIMEOUT", "30"))
 _CLI = "npx"
 _CLI_ARGS = ["-y", "@playwright/cli@latest"]
+_IS_MACOS = platform.system() == "Darwin"
 
 
-def _run_cli(args: list[str], timeout: int = _TIMEOUT) -> dict:
+def _get_frontmost_bundle_id() -> str | None:
+    """Get the bundle ID of the current foreground app (macOS only)."""
+    if not _IS_MACOS:
+        return None
+    try:
+        result = subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to return bundle identifier '
+             'of first application process whose frontmost is true'],
+            capture_output=True, text=True, timeout=3,
+        )
+        bid = result.stdout.strip()
+        return bid if bid else None
+    except Exception:
+        return None
+
+
+def _restore_focus(bundle_id: str | None) -> None:
+    """Restore foreground focus to the given app (macOS only)."""
+    if not bundle_id or not _IS_MACOS:
+        return
+    try:
+        subprocess.run(
+            ["osascript", "-e", f'tell application id "{bundle_id}" to activate'],
+            capture_output=True, text=True, timeout=3,
+        )
+    except Exception:
+        pass
+
+
+def _run_cli(args: list[str], timeout: int = _TIMEOUT, preserve_focus: bool = True) -> dict:
     """Run a playwright-cli command and return structured result."""
+    saved_focus = _get_frontmost_bundle_id() if preserve_focus else None
+
     cmd = [_CLI, *_CLI_ARGS, *args]
     try:
         proc = subprocess.run(
@@ -43,9 +77,13 @@ def _run_cli(args: list[str], timeout: int = _TIMEOUT) -> dict:
             env={**os.environ},
         )
     except subprocess.TimeoutExpired:
+        _restore_focus(saved_focus)
         return {"success": False, "error": f"timeout after {timeout}s"}
     except FileNotFoundError:
+        _restore_focus(saved_focus)
         return {"success": False, "error": "npx not found — is Node.js installed?"}
+
+    _restore_focus(saved_focus)
 
     stdout = proc.stdout.strip()
     stderr = proc.stderr.strip()
