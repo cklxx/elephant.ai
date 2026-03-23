@@ -377,6 +377,10 @@ func larkStatus() error {
 
 	sec.Section("Components")
 	for name, comp := range status.Components {
+		// Verify the cached PID is actually alive
+		if comp.PID > 0 && syscall.Kill(comp.PID, 0) != nil {
+			comp.Health = "down (stale)"
+		}
 		parts := formatLarkComponentStatus(name, comp, headSHA)
 
 		if comp.Health == "healthy" || comp.Health == "alive" {
@@ -515,7 +519,7 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 		return supervisor.Config{}, err
 	}
 	logDir := filepath.Join(mainRoot, "logs")
-	tmpDir := filepath.Join(mainRoot, "tmp")
+	tmpDir := pidDir // lock + status live alongside PIDs for global uniqueness
 
 	// Ensure directories
 	if err := os.MkdirAll(pidDir, 0o755); err != nil {
@@ -523,9 +527,6 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 	}
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return supervisor.Config{}, fmt.Errorf("create log dir: %w", err)
-	}
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return supervisor.Config{}, fmt.Errorf("create tmp dir: %w", err)
 	}
 
 	return supervisor.Config{
