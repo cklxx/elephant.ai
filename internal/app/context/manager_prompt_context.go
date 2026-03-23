@@ -35,6 +35,27 @@ func buildIdentitySection(persona agent.PersonaProfile) string {
 		builder.WriteString("\n")
 		builder.WriteString(meta)
 	}
+	if posture := strings.TrimSpace(persona.Posture); posture != "" {
+		builder.WriteString("\n\n## Posture\n\n")
+		builder.WriteString(posture)
+	}
+	if len(persona.BehaviorPatterns) > 0 {
+		builder.WriteString("\n\n## Behavior Patterns\n")
+		for _, bp := range persona.BehaviorPatterns {
+			builder.WriteString(fmt.Sprintf("\n### %s\n", bp.Name))
+			if bp.Trigger != "" {
+				builder.WriteString(fmt.Sprintf("Trigger: %s\n", bp.Trigger))
+			}
+			if bp.DecisionTree != "" {
+				builder.WriteString(fmt.Sprintf("```\n%s\n```\n", bp.DecisionTree))
+			}
+			if len(bp.AntiPatterns) > 0 {
+				builder.WriteString("Never: ")
+				builder.WriteString(strings.Join(bp.AntiPatterns, ". "))
+				builder.WriteString("\n")
+			}
+		}
+	}
 	return strings.TrimSpace(builder.String())
 }
 

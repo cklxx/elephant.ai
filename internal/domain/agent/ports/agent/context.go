@@ -112,12 +112,22 @@ type MetaContext struct {
 
 // PersonaProfile models persona level instructions.
 type PersonaProfile struct {
-	ID            string `json:"id" yaml:"id"`
-	Tone          string `json:"tone" yaml:"tone"`
-	RiskProfile   string `json:"risk_profile" yaml:"risk_profile"`
-	DecisionStyle string `json:"decision_style" yaml:"decision_style"`
-	Voice         string `json:"voice" yaml:"voice"`
-	VoicePath     string `json:"voice_path,omitempty" yaml:"voice_path,omitempty"` // Path to voice content file (loaded at runtime if set)
+	ID               string            `json:"id" yaml:"id"`
+	Tone             string            `json:"tone" yaml:"tone"`
+	RiskProfile      string            `json:"risk_profile" yaml:"risk_profile"`
+	DecisionStyle    string            `json:"decision_style" yaml:"decision_style"`
+	Voice            string            `json:"voice" yaml:"voice"`
+	VoicePath        string            `json:"voice_path,omitempty" yaml:"voice_path,omitempty"` // Path to voice content file (loaded at runtime if set)
+	Posture          string            `json:"posture,omitempty" yaml:"posture,omitempty"`
+	BehaviorPatterns []BehaviorPattern `json:"behavior_patterns,omitempty" yaml:"behavior_patterns,omitempty"`
+}
+
+// BehaviorPattern encodes a named if-then decision tree for agent conduct.
+type BehaviorPattern struct {
+	Name         string   `json:"name" yaml:"name"`
+	Trigger      string   `json:"trigger" yaml:"trigger"`
+	DecisionTree string   `json:"decision_tree" yaml:"decision_tree"`
+	AntiPatterns []string `json:"anti_patterns,omitempty" yaml:"anti_patterns,omitempty"`
 }
 
 // GoalProfile enumerates long and mid-term goals.

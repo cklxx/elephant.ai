@@ -38,12 +38,21 @@ export interface Message {
   source?: MessageSource;
 }
 
+export interface BehaviorPattern {
+  name: string;
+  trigger: string;
+  decision_tree: string;
+  anti_patterns?: string[];
+}
+
 export interface PersonaProfile {
   id?: string;
   tone?: string;
   risk_profile?: string;
   decision_style?: string;
   voice?: string;
+  posture?: string;
+  behavior_patterns?: BehaviorPattern[];
 }
 
 export interface GoalProfile {
