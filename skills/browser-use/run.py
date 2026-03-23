@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import threading
-import time
+
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
@@ -43,13 +43,30 @@ def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIM
         env=env, text=True,
     )
 
-    lines: list[str] = []
+    n_expected = len(tool_calls)
+    response_map: dict[int, dict] = {}
+    init_event = threading.Event()
+    done_event = threading.Event()
+    step_events: dict[int, threading.Event] = {i: threading.Event() for i in range(1, n_expected + 1)}
 
     def _reader():
         for line in proc.stdout:
             line = line.strip()
-            if line:
-                lines.append(line)
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            msg_id = msg.get("id")
+            if msg_id == 0:
+                init_event.set()
+            elif msg_id is not None and msg_id >= 1:
+                response_map[msg_id] = msg
+                if msg_id in step_events:
+                    step_events[msg_id].set()
+                if len(response_map) >= n_expected:
+                    done_event.set()
 
     t = threading.Thread(target=_reader, daemon=True)
     t.start()
@@ -65,7 +82,7 @@ def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIM
     })
     proc.stdin.write(init_msg + "\n")
     proc.stdin.flush()
-    time.sleep(2)
+    init_event.wait(timeout=10)
 
     for i, (tool_name, arguments) in enumerate(tool_calls, start=1):
         call_msg = json.dumps({
@@ -75,10 +92,10 @@ def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIM
         })
         proc.stdin.write(call_msg + "\n")
         proc.stdin.flush()
-        if i < len(tool_calls):
-            time.sleep(3)
+        if i < n_expected:
+            step_events[i].wait(timeout=timeout)
 
-    t.join(timeout=timeout + len(tool_calls) * 5)
+    done_event.wait(timeout=timeout)
 
     with contextlib.suppress(Exception):
         proc.stdin.close()
@@ -88,18 +105,10 @@ def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIM
     except Exception:
         proc.kill()
 
-    response_map: dict[int, dict] = {}
-    for raw in lines:
-        try:
-            msg = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        msg_id = msg.get("id")
-        if msg_id is not None and msg_id >= 1:
-            response_map[msg_id] = msg
+    t.join(timeout=2)
 
     results = []
-    for i in range(1, len(tool_calls) + 1):
+    for i in range(1, n_expected + 1):
         msg = response_map.get(i)
         if not msg:
             results.append({"success": False, "error": f"no response for call {i}"})

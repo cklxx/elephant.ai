@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultConversationTimeout = 8 * time.Second
+	defaultConversationTimeout = 25 * time.Second
 	conversationMaxTok = 10240
 	conversationTemp           = 0.3
 
