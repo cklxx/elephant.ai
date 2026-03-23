@@ -4,8 +4,12 @@ description: When the user wants text-to-speech audio → generate voice files l
 triggers:
   intent_patterns:
     - "语音|读出来|朗读|TTS|配音|发个语音"
+    - "念.*出来|read.*aloud|speak.*this|说出来"
+    - "转成.*语音|convert.*speech|text.*to.*speech|生成.*音频"
+    - "帮我.*录|record.*voice|旁白|narration|voiceover"
+    - "听.*版本|audio.*version|播报|broadcast"
   context_signals:
-    keywords: ["语音", "朗读", "tts", "配音", "音频"]
+    keywords: ["语音", "朗读", "tts", "配音", "音频", "念", "读", "说", "speech", "voice", "audio", "播报"]
   confidence_threshold: 0.6
 priority: 6
 requires_tools: [bash, write]

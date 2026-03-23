@@ -4,8 +4,13 @@ description: When you need to persist files (reports, docs, evidence) beyond the
 triggers:
   intent_patterns:
     - "artifact|工件|产物|报告保存|deliverable|attachment"
+    - "保存.*报告|save.*report|存.*文件|persist.*file"
+    - "之前.*生成的|previously.*generated|找.*产物|find.*output"
+    - "导出.*结果|export.*result|下载.*文件|download.*file"
+    - "删除.*工件|delete.*artifact|清理.*产物|cleanup"
+    - "列出.*工件|list.*artifacts|看看.*保存了.*什么|what.*saved"
   context_signals:
-    keywords: ["artifact", "工件", "产物", "报告", "deliverable"]
+    keywords: ["artifact", "工件", "产物", "报告", "deliverable", "保存", "导出", "下载", "persist", "export", "文件"]
   confidence_threshold: 0.6
 priority: 5
 requires_tools: [bash]

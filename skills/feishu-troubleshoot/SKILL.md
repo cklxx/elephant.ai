@@ -5,8 +5,13 @@ triggers:
   intent_patterns:
     - "飞书问题|feishu error|授权失败|权限不足"
     - "feishu troubleshoot|飞书排查|飞书诊断"
+    - "飞书.*报错|lark.*error|飞书.*不好使|lark.*not.*working"
+    - "token.*过期|expired|刷新.*token|refresh.*token"
+    - "scope.*不够|insufficient.*scope|缺少.*权限|missing.*permission"
+    - "飞书.*连不上|lark.*connection|API.*失败|API.*failed"
+    - "飞书.*怎么.*了|what.*wrong.*lark|为什么.*飞书|why.*feishu"
   context_signals:
-    keywords: ["troubleshoot", "排查", "诊断", "权限不足", "授权失败"]
+    keywords: ["troubleshoot", "排查", "诊断", "权限不足", "授权失败", "报错", "error", "token", "scope", "连接", "失败"]
   confidence_threshold: 0.5
 priority: 8
 requires_tools: [bash]

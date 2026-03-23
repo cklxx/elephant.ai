@@ -4,8 +4,13 @@ description: When the user needs a presentation → PPT playbook (goal/audience 
 triggers:
   intent_patterns:
     - "ppt|slides|deck|presentation|演示稿|路演|汇报"
+    - "做个.*PPT|make.*presentation|准备.*演示|prepare.*slides"
+    - "周报|weekly.*report|月报|monthly.*report|总结.*汇报"
+    - "pitch.*deck|融资.*BP|商业.*计划|business.*plan"
+    - "技术.*分享|tech.*talk|培训.*材料|training.*material"
+    - "keynote|演讲.*稿|speech.*draft|发言.*材料"
   context_signals:
-    keywords: ["ppt", "slides", "deck", "presentation", "演示", "汇报"]
+    keywords: ["ppt", "slides", "deck", "presentation", "演示", "汇报", "周报", "月报", "pitch", "keynote", "演讲", "分享", "培训"]
   confidence_threshold: 0.6
 priority: 7
 requires_tools: [bash]

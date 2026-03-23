@@ -5,8 +5,14 @@ triggers:
   intent_patterns:
     - "消息记录|聊天历史|message history|聊天记录"
     - "发送消息|send message|消息搜索"
+    - "群里.*说了.*什么|what.*said.*in.*group|看.*群消息|check.*group"
+    - "谁.*发的|who.*sent|最近.*消息|recent.*messages"
+    - "帮我.*发|send.*for.*me|转发|forward|回复.*消息|reply.*message"
+    - "搜索.*聊天|search.*chat|找.*说过|find.*mentioned"
+    - "下载.*附件|download.*attachment|图片.*聊天|image.*in.*chat"
+    - "私信|DM|direct.*message|单聊"
   context_signals:
-    keywords: ["message", "消息", "chat", "聊天", "history", "send_message"]
+    keywords: ["message", "消息", "chat", "聊天", "history", "send_message", "群", "group", "附件", "转发", "搜索", "私信", "DM"]
   confidence_threshold: 0.5
 priority: 9
 requires_tools: [bash]

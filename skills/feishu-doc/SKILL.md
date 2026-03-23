@@ -6,8 +6,13 @@ triggers:
     - "云文档|document|docx|创建文档|读取文档|更新文档"
     - "知识库|wiki|知识空间"
     - "文档内容|写文档|编辑文档"
+    - "帮我.*写到.*文档|write.*to.*doc|更新.*飞书.*文档"
+    - "读.*飞书.*文档|read.*lark.*doc|看下.*这个.*文档"
+    - "新建.*wiki|create.*wiki|发布.*知识库|publish.*wiki"
+    - "文档.*链接|doc.*link|分享.*文档|share.*doc"
+    - "追加.*内容|append.*content|在.*文档.*里.*加|add.*to.*doc"
   context_signals:
-    keywords: ["doc", "document", "docx", "wiki", "文档", "知识库", "document_id"]
+    keywords: ["doc", "document", "docx", "wiki", "文档", "知识库", "document_id", "写", "读", "创建", "编辑", "分享", "追加"]
   confidence_threshold: 0.5
 priority: 9
 requires_tools: [bash]

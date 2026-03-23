@@ -5,8 +5,13 @@ triggers:
   intent_patterns:
     - "任务|待办|task|todo"
     - "创建任务|完成任务|任务清单|子任务"
+    - "帮我.*记一下|note.*this|加.*待办|add.*todo"
+    - "我.*要做|I need to|还有.*没做|not.*done.*yet"
+    - "分配.*任务|assign.*task|指派|delegate.*to"
+    - "任务.*进度|task.*progress|完成.*情况|completion.*status"
+    - "今天.*要做|today.*todo|优先级|priority|截止.*日期|deadline|due.*date"
   context_signals:
-    keywords: ["task", "任务", "待办", "todo", "subtask", "tasklist"]
+    keywords: ["task", "任务", "待办", "todo", "subtask", "tasklist", "进度", "优先级", "截止", "分配", "deadline", "priority"]
   confidence_threshold: 0.5
 priority: 9
 requires_tools: [bash]

@@ -3,10 +3,19 @@ name: browser-use
 description: When you need to interact with web pages using the user's logged-in browser → control Chrome via Playwright MCP, reusing cookies/session.
 triggers:
   intent_patterns:
-    - "浏览器|browser|网页|webpage|打开网站|open.*url|截图|screenshot|x\\.com|twitter"
+    - "浏览器|browser|网页|webpage|打开网站|open.*url|截图|screenshot"
+    - "x\\.com|twitter|微博|weibo|reddit|hacker.?news|github\\.com|youtube"
+    - "登录.*页面|login.*page|填写表单|fill.*form|submit.*form|提交表单"
+    - "看看这个网站|帮我打开|check.*this.*site|visit.*page|go to"
+    - "页面.*内容|page.*content|抓取|scrape|爬取|extract.*from.*page"
+    - "点击|click|输入|type.*into|scroll|滚动|翻页|next.*page"
+    - "网站.*截图|capture.*page|保存.*网页|save.*page"
+    - "帮我.*操作|automate.*web|自动化.*网页|web.*automation"
+    - "查看.*网页|look.*at|看一下|帮我看看|打开看看"
+    - "复用.*tab|reuse.*tab|之前.*标签页|切换.*标签"
   context_signals:
-    keywords: ["浏览器", "browser", "网页", "截图", "打开", "navigate", "snapshot"]
-  confidence_threshold: 0.7
+    keywords: ["浏览器", "browser", "网页", "截图", "打开", "navigate", "snapshot", "tab", "标签页", "页面", "网站", "click", "点击", "form", "表单", "scrape", "抓取"]
+  confidence_threshold: 0.6
 priority: 6
 requires_tools: [bash]
 max_tokens: 4000

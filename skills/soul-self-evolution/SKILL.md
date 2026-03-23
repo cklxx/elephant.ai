@@ -4,8 +4,13 @@ description: When personality/collaboration strategy needs updating → evolve S
 triggers:
   intent_patterns:
     - "soul|人格更新|self evolve|自我优化|更新协作风格"
+    - "调整.*性格|adjust.*personality|改.*语气|change.*tone"
+    - "你.*太.*了|you're.*too|不要.*这样|stop.*being"
+    - "更.*主动|more.*proactive|更.*简洁|more.*concise|更.*温柔|more.*gentle"
+    - "风格.*偏好|style.*preference|沟通.*方式|communication.*style"
+    - "人格.*优化|persona.*optimize|行为.*模式|behavior.*pattern"
   context_signals:
-    keywords: ["SOUL", "persona", "habit", "collaboration"]
+    keywords: ["SOUL", "persona", "habit", "collaboration", "性格", "语气", "风格", "tone", "personality", "行为模式"]
   confidence_threshold: 0.7
 priority: 9
 requires_tools: [read_file, write_file]

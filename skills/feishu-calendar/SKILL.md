@@ -5,8 +5,13 @@ triggers:
   intent_patterns:
     - "日历|日程|calendar|会议|meeting"
     - "创建日程|安排会议|查看日历|空闲时间|忙闲"
+    - "约.*时间|book.*time|找.*空闲|find.*available"
+    - "今天.*有什么.*会|what.*meetings.*today|明天.*日程|tomorrow.*schedule"
+    - "取消.*会议|cancel.*meeting|改.*时间|reschedule"
+    - "邀请.*参加|invite.*to|添加.*参会人|add.*attendee"
+    - "下周.*安排|next.*week.*schedule|这周.*日程|this.*week"
   context_signals:
-    keywords: ["calendar", "日历", "日程", "会议", "event", "attendee", "freebusy"]
+    keywords: ["calendar", "日历", "日程", "会议", "event", "attendee", "freebusy", "约", "安排", "空闲", "取消", "邀请", "schedule"]
   confidence_threshold: 0.5
 priority: 9
 requires_tools: [bash]

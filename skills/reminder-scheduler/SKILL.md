@@ -4,8 +4,14 @@ description: When the user wants to set reminders → create, query, cancel one-
 triggers:
   intent_patterns:
     - "提醒|remind|timer|定时|倒计时|schedule|cron|周期任务|闹钟|alarm"
+    - "\\d+.*分钟后|\\d+.*小时后|\\d+.*天后|in.*\\d+.*min|in.*\\d+.*hour"
+    - "别忘了|don't forget|记得.*做|remember to"
+    - "每天.*点|every.*day|每周|every.*week|每月|every.*month"
+    - "下午.*提醒|明天.*提醒|晚上.*提醒|tomorrow.*remind"
+    - "到时候.*通知|notify.*when|等.*结束.*告诉|alert.*me"
+    - "取消.*提醒|cancel.*reminder|删掉.*闹钟|stop.*remind"
   context_signals:
-    keywords: ["提醒", "timer", "schedule", "cron", "周期"]
+    keywords: ["提醒", "timer", "schedule", "cron", "周期", "定时", "remind", "alarm", "notify", "通知", "每天", "每周"]
   confidence_threshold: 0.55
 priority: 7
 requires_tools: [bash]

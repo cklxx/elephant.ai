@@ -4,8 +4,14 @@ description: When user needs AnyGenIO content generation → unified CLI for tas
 triggers:
   intent_patterns:
     - "anygen|ppt|slides|生成文档|docx|storyboard|website|data analysis|smart_draw|diagram"
+    - "帮我.*做个.*文档|create.*document|写.*报告|write.*report"
+    - "分镜|storyboard|故事板|脚本.*可视化"
+    - "生成.*网站|generate.*website|落地页|landing.*page"
+    - "数据.*分析|data.*analysis|统计.*图表|statistical.*chart"
+    - "智能.*绘图|smart.*draw|自动.*画图|auto.*diagram"
+    - "word.*文档|word.*doc|文档.*模板|doc.*template"
   context_signals:
-    keywords: ["anygen", "slide", "ppt", "doc", "website", "data_analysis", "smart_draw", "storyboard"]
+    keywords: ["anygen", "slide", "ppt", "doc", "website", "data_analysis", "smart_draw", "storyboard", "文档", "报告", "分镜", "落地页", "模板"]
   confidence_threshold: 0.6
 priority: 7
 requires_tools: [bash]

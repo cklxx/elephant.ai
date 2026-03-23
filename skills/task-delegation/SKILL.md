@@ -4,9 +4,13 @@ description: When a subtask should run on a different agent (Codex/Claude/Gemini
 triggers:
   intent_patterns:
     - "delegate|委派|分发|子任务|subtask|dispatch|后台执行"
+    - "交给.*codex|send.*to.*codex|让.*claude.*做|ask.*claude"
+    - "后台.*跑|run.*background|异步.*执行|async.*execute"
+    - "分配.*给|assign.*to|外包.*出去|outsource"
+    - "用.*另一个.*agent|use.*another.*agent|换.*模型.*做|switch.*model"
   context_signals:
-    keywords: ["delegate", "委派", "codex", "claude", "dispatch"]
-  confidence_threshold: 0.7
+    keywords: ["delegate", "委派", "codex", "claude", "dispatch", "后台", "异步", "分配", "agent", "gemini"]
+  confidence_threshold: 0.65
 priority: 7
 requires_tools: [bash]
 max_tokens: 200

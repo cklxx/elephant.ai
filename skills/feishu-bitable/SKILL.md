@@ -5,8 +5,13 @@ triggers:
   intent_patterns:
     - "多维表格|bitable|数据表|表格记录"
     - "新增记录|批量导入|表格字段|筛选查询"
+    - "更新.*表格|update.*table|删除.*记录|delete.*record"
+    - "查.*数据|query.*data|过滤.*条件|filter.*condition"
+    - "新建.*视图|create.*view|看板.*视图|kanban.*view|甘特.*视图"
+    - "统计.*表格|aggregate|汇总|summarize.*table"
+    - "导入.*excel|import.*csv|批量.*更新|batch.*update"
   context_signals:
-    keywords: ["bitable", "多维表格", "app_token", "table_id", "record"]
+    keywords: ["bitable", "多维表格", "app_token", "table_id", "record", "视图", "view", "筛选", "导入", "汇总", "batch"]
   confidence_threshold: 0.5
 priority: 9
 requires_tools: [bash]

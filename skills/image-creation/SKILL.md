@@ -4,8 +4,14 @@ description: When the user wants to create or edit images → generate with Seed
 triggers:
   intent_patterns:
     - "生成图片|画|draw|image|图片|插图|illustration|设计图|海报"
+    - "帮我画.*|画一个|画个|generate.*image|create.*image"
+    - "logo|图标设计|icon.*design|封面|cover.*image|thumbnail"
+    - "壁纸|wallpaper|背景图|banner|头像|avatar|profile.*pic"
+    - "效果图|mockup|示意图|概念图|concept.*art"
+    - "修改.*图片|edit.*image|换个.*风格|style.*transfer|重新生成"
+    - "图生图|image.*to.*image|以图生图|参考.*这张"
   context_signals:
-    keywords: ["图片", "image", "draw", "画", "生成", "设计"]
+    keywords: ["图片", "image", "draw", "画", "生成", "设计", "logo", "海报", "封面", "banner", "头像", "壁纸", "概念图", "mockup"]
   confidence_threshold: 0.6
 priority: 7
 exclusive_group: image

@@ -1,6 +1,20 @@
 ---
 name: video-production
 description: When the user wants to create a short video → generate with Seedance, validate and save output files.
+triggers:
+  intent_patterns:
+    - "视频|video|短视频|short.*video|生成.*视频|create.*video"
+    - "动画|animation|动态.*效果|motion|转场|transition"
+    - "视频.*素材|video.*clip|片段|footage"
+    - "图片.*变.*视频|image.*to.*video|动起来|animate.*this"
+    - "seedance|生成.*动画|make.*video"
+  context_signals:
+    keywords: ["视频", "video", "动画", "animation", "短视频", "seedance", "clip", "motion", "片段"]
+  confidence_threshold: 0.6
+priority: 7
+requires_tools: [bash]
+max_tokens: 200
+cooldown: 30
 ---
 
 # video-production

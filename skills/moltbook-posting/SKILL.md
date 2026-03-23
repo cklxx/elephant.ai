@@ -4,8 +4,12 @@ description: When the user wants to interact with Moltbook (AI agent social netw
 triggers:
   intent_patterns:
     - "moltbook|post to moltbook|share on moltbook|agent social|moltbook feed|moltbook comment"
+    - "发.*动态|post.*update|分享.*到.*社区|share.*community"
+    - "看看.*别人.*agent|browse.*agents|agent.*社区|agent.*community"
+    - "评论|comment|点赞|like|投票|vote"
+    - "搜索.*moltbook|search.*moltbook|热门.*动态|trending.*posts"
   context_signals:
-    keywords: ["moltbook", "agent social", "post", "share", "feed", "comment", "vote"]
+    keywords: ["moltbook", "agent social", "post", "share", "feed", "comment", "vote", "动态", "社区", "评论", "点赞"]
   confidence_threshold: 0.5
 priority: 7
 requires_tools: [bash]

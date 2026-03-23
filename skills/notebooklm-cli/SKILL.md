@@ -4,8 +4,12 @@ description: When the user needs NotebookLM operations → unified CLI (command/
 triggers:
   intent_patterns:
     - "notebooklm|notebook lm|nlm|音频概览|podcast|research notebook"
+    - "生成.*播客|generate.*podcast|做成.*音频.*讨论|audio.*discussion"
+    - "笔记本.*分析|notebook.*analysis|整理.*资料.*notebook"
+    - "添加.*资料|add.*source|加.*文档|import.*document"
+    - "AI.*摘要|ai.*summary|智能.*笔记|smart.*notes"
   context_signals:
-    keywords: ["notebooklm", "nlm", "notebook", "source", "podcast", "report"]
+    keywords: ["notebooklm", "nlm", "notebook", "source", "podcast", "report", "播客", "笔记", "资料", "摘要"]
   confidence_threshold: 0.6
 priority: 7
 requires_tools: [bash]

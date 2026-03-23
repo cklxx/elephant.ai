@@ -4,11 +4,18 @@ description: When a topic needs thorough investigation from multiple sources →
 triggers:
   intent_patterns:
     - "research|调研|调查|分析|analysis|market"
+    - "帮我查.*背景|background.*research|了解一下|深入了解"
+    - "竞品分析|competitive.*analysis|行业.*报告|industry.*report"
+    - "总结.*资料|summarize.*sources|综合.*信息|compile.*findings"
+    - "这个.*怎么回事|what.*happened|来龙去脉|前因后果"
+    - "趋势|trend|现状|current.*state|发展.*方向"
+    - "对比.*方案|compare.*options|选型|tech.*selection|evaluate.*alternatives"
+    - "帮我.*整理|help.*organize|梳理|sort.*out"
   tool_signals:
     - web_search
     - web_fetch
   context_signals:
-    keywords: ["调研", "研究", "analysis", "research"]
+    keywords: ["调研", "研究", "analysis", "research", "竞品", "趋势", "选型", "background", "investigate", "对比", "综合", "梳理", "evaluate"]
   confidence_threshold: 0.6
 priority: 8
 exclusive_group: research
