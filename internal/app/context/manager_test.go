@@ -142,9 +142,9 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 
 	prompt := window.SystemPrompt
 	expectations := []string{
-		"Perfect Subordinate — System Prompt",
-		"Optimize for intent, not literal wording.",
-		"Lead with the bottom line.",
+		"Posture & Behavior — Core Identity",
+		"Trusted lieutenant",
+		"Action Bias",
 		"Never execute destructive shell commands",
 		"alex team run",
 	}

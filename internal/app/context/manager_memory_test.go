@@ -98,7 +98,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read SOUL.md: %v", err)
 	}
-	if !strings.Contains(string(soulBytes), "# Perfect Subordinate — System Prompt") {
+	if !strings.Contains(string(soulBytes), "# Posture & Behavior — Core Identity") {
 		t.Fatalf("expected SOUL.md bootstrap content from default persona voice, got: %s", string(soulBytes))
 	}
 
