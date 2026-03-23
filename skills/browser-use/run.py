@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-"""browser-use skill — Playwright MCP Extension Relay 控制用户已登录的浏览器。
+"""browser-use skill — @playwright/cli controlling the user's real Chrome via extension.
 
-每次调用启动一个 playwright-mcp 进程，通过 stdin JSON-RPC 发送工具调用。
-单动作直接调用，多步操作用 pipeline 在同一个浏览器会话内批量执行。
+Uses a persistent daemon session: tabs, cookies, and login state survive across calls.
+Each action is a simple CLI invocation — no MCP subprocess management.
 
-actions: navigate, snapshot, click, type, screenshot, tabs, evaluate, run_code, press_key, wait_for, pipeline
+actions: open, navigate, snapshot, click, type, screenshot, tabs, tab_select,
+         evaluate, run_code, press_key, wait_for, go_back, go_forward, reload,
+         fill, hover, select, upload, pdf, console, network, close
 """
 
 from __future__ import annotations
 
-import contextlib
-import json
 import os
 import subprocess
 import sys
-import threading
 
 from pathlib import Path
 
@@ -27,200 +26,274 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
-_CALL_TIMEOUT = int(os.environ.get("BROWSER_SKILL_TIMEOUT", "30"))
+_TIMEOUT = int(os.environ.get("BROWSER_SKILL_TIMEOUT", "30"))
+_CLI = "npx"
+_CLI_ARGS = ["-y", "@playwright/cli@latest"]
 
 
-def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIMEOUT) -> list[dict]:
-    """Spawn one playwright-mcp process, send init + N tool calls, return results."""
-    token = os.environ.get("ALEX_BROWSER_BRIDGE_TOKEN", "")
-    env = {**os.environ}
-    if token:
-        env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"] = token
-
-    proc = subprocess.Popen(
-        ["npx", "-y", "@playwright/mcp@latest", "--extension"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        env=env, text=True,
-    )
-
-    n_expected = len(tool_calls)
-    response_map: dict[int, dict] = {}
-    init_event = threading.Event()
-    done_event = threading.Event()
-    step_events: dict[int, threading.Event] = {i: threading.Event() for i in range(1, n_expected + 1)}
-
-    def _reader():
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            msg_id = msg.get("id")
-            if msg_id == 0:
-                init_event.set()
-            elif msg_id is not None and msg_id >= 1:
-                response_map[msg_id] = msg
-                if msg_id in step_events:
-                    step_events[msg_id].set()
-                if len(response_map) >= n_expected:
-                    done_event.set()
-
-    t = threading.Thread(target=_reader, daemon=True)
-    t.start()
-
-    init_msg = json.dumps({
-        "jsonrpc": "2.0", "id": 0,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "browser-use-skill", "version": "1.0"},
-        },
-    })
-    proc.stdin.write(init_msg + "\n")
-    proc.stdin.flush()
-    init_event.wait(timeout=10)
-
-    for i, (tool_name, arguments) in enumerate(tool_calls, start=1):
-        call_msg = json.dumps({
-            "jsonrpc": "2.0", "id": i,
-            "method": "tools/call",
-            "params": {"name": tool_name, "arguments": arguments},
-        })
-        proc.stdin.write(call_msg + "\n")
-        proc.stdin.flush()
-        if i < n_expected:
-            step_events[i].wait(timeout=timeout)
-
-    done_event.wait(timeout=timeout)
-
-    with contextlib.suppress(Exception):
-        proc.stdin.close()
+def _run_cli(args: list[str], timeout: int = _TIMEOUT) -> dict:
+    """Run a playwright-cli command and return structured result."""
+    cmd = [_CLI, *_CLI_ARGS, *args]
     try:
-        proc.terminate()
-        proc.wait(timeout=3)
-    except Exception:
-        proc.kill()
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ},
+        )
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"timeout after {timeout}s"}
+    except FileNotFoundError:
+        return {"success": False, "error": "npx not found — is Node.js installed?"}
 
-    t.join(timeout=2)
+    stdout = proc.stdout.strip()
+    stderr = proc.stderr.strip()
 
-    results = []
-    for i in range(1, n_expected + 1):
-        msg = response_map.get(i)
-        if not msg:
-            results.append({"success": False, "error": f"no response for call {i}"})
-            continue
-        if "error" in msg:
-            results.append({"success": False, "error": msg["error"].get("message", str(msg["error"]))})
-            continue
-        content = msg.get("result", {}).get("content", [])
-        texts = [c.get("text", "") for c in content if c.get("type") == "text"]
-        results.append({"success": True, "output": "\n".join(texts)})
+    if proc.returncode != 0:
+        error_msg = stderr or stdout or f"exit code {proc.returncode}"
+        return {"success": False, "error": error_msg}
 
-    return results
+    return {"success": True, "output": stdout}
 
 
-def _call_single(tool_name: str, arguments: dict) -> dict:
-    results = _call_mcp_tools([(tool_name, arguments)])
-    return results[0] if results else {"success": False, "error": "no response"}
+def _ensure_session() -> dict | None:
+    """Ensure a browser daemon session is running with extension mode.
+
+    Returns None if session exists, or an error dict if it fails to start.
+    """
+    result = _run_cli(["list"], timeout=10)
+    if result.get("success") and result.get("output", "").strip():
+        output = result["output"]
+        # If there's a running session, we're good
+        if "pid" in output.lower() or "default" in output.lower():
+            return None
+
+    # No session — start one via open --extension
+    result = _run_cli(["open", "--extension"], timeout=15)
+    if not result.get("success"):
+        return {"success": False, "error": f"failed to open browser session: {result.get('error', 'unknown')}"}
+    return None
 
 
 # ── Actions ──
 
-def navigate(a: dict) -> dict:
+def action_open(a: dict) -> dict:
+    """Open browser session, optionally navigate to URL."""
+    args = ["open", "--extension"]
+    url = a.get("url", "")
+    if url:
+        args.append(url)
+    return _run_cli(args, timeout=15)
+
+
+def action_navigate(a: dict) -> dict:
     url = a.get("url", "")
     if not url:
         return {"success": False, "error": "url is required"}
-    return _call_single("browser_navigate", {"url": url})
+    err = _ensure_session()
+    if err:
+        return err
+    return _run_cli(["goto", url])
 
 
-def snapshot(_args: dict) -> dict:
-    return _call_single("browser_snapshot", {})
+def action_snapshot(a: dict) -> dict:
+    err = _ensure_session()
+    if err:
+        return err
+    args = ["snapshot"]
+    filename = a.get("filename", "")
+    if filename:
+        args.extend(["--filename", filename])
+    return _run_cli(args)
 
 
-def click(a: dict) -> dict:
+def action_click(a: dict) -> dict:
     ref = a.get("ref", "")
     if not ref:
         return {"success": False, "error": "ref is required (from snapshot)"}
-    return _call_single("browser_click", {"ref": ref, "element": a.get("element", "")})
+    args = ["click", ref]
+    button = a.get("button", "")
+    if button:
+        args.append(button)
+    modifiers = a.get("modifiers", "")
+    if modifiers:
+        args.extend(["--modifiers", modifiers])
+    return _run_cli(args)
 
 
-def type_text(a: dict) -> dict:
-    ref, text = a.get("ref", ""), a.get("text", "")
+def action_type(a: dict) -> dict:
+    text = a.get("text", "")
+    if not text:
+        return {"success": False, "error": "text is required"}
+    args = ["type", text]
+    if a.get("submit"):
+        args.append("--submit")
+    return _run_cli(args)
+
+
+def action_fill(a: dict) -> dict:
+    ref = a.get("ref", "")
+    text = a.get("text", "")
     if not ref or not text:
         return {"success": False, "error": "ref and text are required"}
-    return _call_single("browser_type", {"ref": ref, "text": text, "submit": a.get("submit", False)})
+    return _run_cli(["fill", ref, text])
 
 
-def screenshot(a: dict) -> dict:
-    params = {"type": a.get("format", "png")}
-    if a.get("filename"):
-        params["filename"] = a["filename"]
+def action_screenshot(a: dict) -> dict:
+    err = _ensure_session()
+    if err:
+        return err
+    args = ["screenshot"]
+    ref = a.get("ref", "")
+    if ref:
+        args.append(ref)
+    filename = a.get("filename", "")
+    if filename:
+        args.extend(["--filename", filename])
     if a.get("full_page"):
-        params["fullPage"] = True
-    return _call_single("browser_take_screenshot", params)
+        args.append("--full-page")
+    return _run_cli(args)
 
 
-def tabs(a: dict) -> dict:
-    params = {"action": a.get("tab_action", "list")}
-    if "index" in a:
-        params["index"] = a["index"]
-    return _call_single("browser_tabs", params)
+def action_tabs(a: dict) -> dict:
+    err = _ensure_session()
+    if err:
+        return err
+    return _run_cli(["tab-list"])
 
 
-def evaluate(a: dict) -> dict:
+def action_tab_select(a: dict) -> dict:
+    index = a.get("index")
+    if index is None:
+        return {"success": False, "error": "index is required"}
+    return _run_cli(["tab-select", str(index)])
+
+
+def action_tab_new(a: dict) -> dict:
+    args = ["tab-new"]
+    url = a.get("url", "")
+    if url:
+        args.append(url)
+    return _run_cli(args)
+
+
+def action_tab_close(a: dict) -> dict:
+    args = ["tab-close"]
+    index = a.get("index")
+    if index is not None:
+        args.append(str(index))
+    return _run_cli(args)
+
+
+def action_evaluate(a: dict) -> dict:
     fn = a.get("function", "")
     if not fn:
         return {"success": False, "error": "function is required"}
-    return _call_single("browser_evaluate", {"function": fn})
+    args = ["eval", fn]
+    ref = a.get("ref", "")
+    if ref:
+        args.append(ref)
+    return _run_cli(args)
 
 
-def run_code(a: dict) -> dict:
+def action_run_code(a: dict) -> dict:
     code = a.get("code", "")
     if not code:
         return {"success": False, "error": "code is required"}
-    return _call_single("browser_run_code", {"code": code})
+    return _run_cli(["run-code", code])
 
 
-def press_key(a: dict) -> dict:
+def action_press_key(a: dict) -> dict:
     key = a.get("key", "")
     if not key:
         return {"success": False, "error": "key is required"}
-    return _call_single("browser_press_key", {"key": key})
+    return _run_cli(["press", key])
 
 
-def wait_for(a: dict) -> dict:
-    params = {}
-    for src, dst in [("time", "time"), ("text", "text"), ("text_gone", "textGone")]:
-        if src in a:
-            params[dst] = a[src]
-    return _call_single("browser_wait_for", params)
+def action_wait_for(a: dict) -> dict:
+    # wait_for doesn't exist as a CLI command — use eval with polling
+    text = a.get("text", "")
+    time_ms = a.get("time")
+    if time_ms:
+        return _run_cli(["eval", f"() => new Promise(r => setTimeout(r, {time_ms}))"])
+    if text:
+        return _run_cli(["eval", f"() => document.body.innerText.includes('{text}')"])
+    return {"success": False, "error": "text or time is required"}
 
 
-def pipeline(a: dict) -> dict:
-    """Run multiple actions in one browser session.
+def action_hover(a: dict) -> dict:
+    ref = a.get("ref", "")
+    if not ref:
+        return {"success": False, "error": "ref is required"}
+    return _run_cli(["hover", ref])
 
-    Example: {"action": "pipeline", "steps": [
-        {"tool": "browser_navigate", "args": {"url": "https://x.com"}},
-        {"tool": "browser_snapshot", "args": {}}
-    ]}
-    """
-    steps = a.get("steps", [])
-    if not steps:
-        return {"success": False, "error": "steps is required"}
-    tool_calls = [(s["tool"], s.get("args", {})) for s in steps]
-    results = _call_mcp_tools(tool_calls)
-    return {"success": all(r.get("success") for r in results), "results": results}
+
+def action_select(a: dict) -> dict:
+    ref = a.get("ref", "")
+    value = a.get("value", "")
+    if not ref or not value:
+        return {"success": False, "error": "ref and value are required"}
+    return _run_cli(["select", ref, value])
+
+
+def action_go_back(_a: dict) -> dict:
+    return _run_cli(["go-back"])
+
+
+def action_go_forward(_a: dict) -> dict:
+    return _run_cli(["go-forward"])
+
+
+def action_reload(_a: dict) -> dict:
+    return _run_cli(["reload"])
+
+
+def action_pdf(a: dict) -> dict:
+    return _run_cli(["pdf"])
+
+
+def action_console(a: dict) -> dict:
+    args = ["console"]
+    level = a.get("min_level", "")
+    if level:
+        args.append(level)
+    return _run_cli(args)
+
+
+def action_network(_a: dict) -> dict:
+    return _run_cli(["network"])
+
+
+def action_close(_a: dict) -> dict:
+    return _run_cli(["close"])
 
 
 _ACTIONS = {
-    "navigate": navigate, "snapshot": snapshot, "click": click,
-    "type": type_text, "screenshot": screenshot, "tabs": tabs,
-    "evaluate": evaluate, "run_code": run_code, "press_key": press_key,
-    "wait_for": wait_for, "pipeline": pipeline,
+    "open": action_open,
+    "navigate": action_navigate,
+    "snapshot": action_snapshot,
+    "click": action_click,
+    "type": action_type,
+    "fill": action_fill,
+    "screenshot": action_screenshot,
+    "tabs": action_tabs,
+    "tab_select": action_tab_select,
+    "tab_new": action_tab_new,
+    "tab_close": action_tab_close,
+    "evaluate": action_evaluate,
+    "run_code": action_run_code,
+    "press_key": action_press_key,
+    "wait_for": action_wait_for,
+    "hover": action_hover,
+    "select": action_select,
+    "go_back": action_go_back,
+    "go_forward": action_go_forward,
+    "reload": action_reload,
+    "pdf": action_pdf,
+    "console": action_console,
+    "network": action_network,
+    "close": action_close,
 }
 
 
@@ -228,7 +301,7 @@ def run(args: dict) -> dict:
     action = args.pop("action", "snapshot")
     handler = _ACTIONS.get(action)
     if not handler:
-        return {"success": False, "error": f"unknown action: {action} (available: {', '.join(_ACTIONS)})"}
+        return {"success": False, "error": f"unknown action: {action} (available: {', '.join(sorted(_ACTIONS))})"}
     return handler(args)
 
 
